@@ -12,7 +12,9 @@ interface CreatePortfolioFormProps {
 export default function CreatePortfolioForm({ onSuccess, onCancel }: CreatePortfolioFormProps) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [goal, setGoal] = useState('Design a moderate-risk investment portfolio aimed at achieving steady long-term growth through a diversified mix of asset classes, balancing capital appreciation with risk mitigation. The portfolio should target above-inflation returns while maintaining resilience during market volatility, avoiding highly speculative assets and minimizing large drawdowns.');
   const [isPublic, setIsPublic] = useState(false);
+  const [isBotPortfolio, setIsBotPortfolio] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const { user } = useAuth();
@@ -29,7 +31,10 @@ export default function CreatePortfolioForm({ onSuccess, onCancel }: CreatePortf
         userId: user.uid,
         name,
         description: description || undefined,
+        goal: goal.trim(),
         isPublic,
+        isBotPortfolio: isBotPortfolio || false,
+        cashBalance: 10000,
         totalValue: 0,
         totalGainLoss: 0,
         totalGainLossPercent: 0,
@@ -39,7 +44,9 @@ export default function CreatePortfolioForm({ onSuccess, onCancel }: CreatePortf
 
       setName('');
       setDescription('');
+      setGoal('Design a moderate-risk investment portfolio aimed at achieving steady long-term growth through a diversified mix of asset classes, balancing capital appreciation with risk mitigation. The portfolio should target above-inflation returns while maintaining resilience during market volatility, avoiding highly speculative assets and minimizing large drawdowns.');
       setIsPublic(false);
+      setIsBotPortfolio(false);
       
       if (onSuccess) {
         onSuccess(portfolioId);
@@ -78,6 +85,21 @@ export default function CreatePortfolioForm({ onSuccess, onCancel }: CreatePortf
         </div>
 
         <div>
+          <label htmlFor="goal" className="block text-sm font-medium text-gray-700 mb-1">
+            Investment Goal *
+          </label>
+          <textarea
+            id="goal"
+            value={goal}
+            onChange={(e) => setGoal(e.target.value)}
+            required
+            rows={3}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-gray-900"
+            placeholder="Define your investment goal and strategy..."
+          />
+        </div>
+
+        <div>
           <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
             Description
           </label>
@@ -91,17 +113,32 @@ export default function CreatePortfolioForm({ onSuccess, onCancel }: CreatePortf
           />
         </div>
 
-        <div className="flex items-center">
-          <input
-            type="checkbox"
-            id="isPublic"
-            checked={isPublic}
-            onChange={(e) => setIsPublic(e.target.checked)}
-            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-          />
-          <label htmlFor="isPublic" className="ml-2 block text-sm text-gray-900">
-            Make this portfolio public
-          </label>
+        <div className="space-y-3">
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="isPublic"
+              checked={isPublic}
+              onChange={(e) => setIsPublic(e.target.checked)}
+              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+            />
+            <label htmlFor="isPublic" className="ml-2 block text-sm text-gray-900">
+              Make this portfolio public
+            </label>
+          </div>
+          
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="isBotPortfolio"
+              checked={isBotPortfolio}
+              onChange={(e) => setIsBotPortfolio(e.target.checked)}
+              className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+            />
+            <label htmlFor="isBotPortfolio" className="ml-2 block text-sm text-gray-900">
+              This is a bot portfolio
+            </label>
+          </div>
         </div>
 
         <div className="flex justify-end space-x-3">
@@ -116,7 +153,7 @@ export default function CreatePortfolioForm({ onSuccess, onCancel }: CreatePortf
           )}
           <button
             type="submit"
-            disabled={loading || !name.trim()}
+            disabled={loading || !name.trim() || !goal.trim()}
             className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {loading ? 'Creating...' : 'Create Portfolio'}

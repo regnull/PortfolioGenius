@@ -16,6 +16,7 @@ export default function AddPositionForm({ portfolioId, onSuccess, onCancel }: Ad
   const [type, setType] = useState<'stock' | 'etf' | 'crypto' | 'bond' | 'other'>('stock');
   const [quantity, setQuantity] = useState('');
   const [openPrice, setOpenPrice] = useState('');
+  const [fees, setFees] = useState('');
   const [openDate, setOpenDate] = useState(() => {
     const today = new Date();
     const year = today.getFullYear();
@@ -36,9 +37,15 @@ export default function AddPositionForm({ portfolioId, onSuccess, onCancel }: Ad
 
     const quantityNum = parseFloat(quantity);
     const priceNum = parseFloat(openPrice);
+    const feesNum = parseFloat(fees) || 0;
 
     if (quantityNum <= 0 || priceNum <= 0) {
       setError('Quantity and price must be positive numbers');
+      return;
+    }
+
+    if (feesNum < 0) {
+      setError('Fees cannot be negative');
       return;
     }
 
@@ -59,6 +66,7 @@ export default function AddPositionForm({ portfolioId, onSuccess, onCancel }: Ad
         totalValue: quantityNum * priceNum,
         gainLoss: 0, // Will be calculated later
         gainLossPercent: 0, // Will be calculated later
+        fees: feesNum,
         createdAt: new Date(),
         updatedAt: new Date()
       };
@@ -76,6 +84,7 @@ export default function AddPositionForm({ portfolioId, onSuccess, onCancel }: Ad
       setType('stock');
       setQuantity('');
       setOpenPrice('');
+      setFees('');
       const today = new Date();
       const year = today.getFullYear();
       const month = String(today.getMonth() + 1).padStart(2, '0');
@@ -187,6 +196,22 @@ export default function AddPositionForm({ portfolioId, onSuccess, onCancel }: Ad
               placeholder="150.00"
             />
           </div>
+        </div>
+
+        <div>
+          <label htmlFor="fees" className="block text-sm font-medium text-gray-700 mb-1">
+            Transaction Fees
+          </label>
+          <input
+            type="number"
+            id="fees"
+            value={fees}
+            onChange={(e) => setFees(e.target.value)}
+            min="0"
+            step="0.01"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-gray-900"
+            placeholder="0.00"
+          />
         </div>
 
         <div>

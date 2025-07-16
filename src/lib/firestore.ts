@@ -126,10 +126,11 @@ export const deletePortfolio = async (portfolioId: string) => {
   }
 };
 
-export const addTrade = async (tradeData: Omit<Trade, 'id'>) => {
+export const addTrade = async (portfolioId: string, tradeData: Omit<Trade, 'id' | 'portfolioId'>) => {
   try {
-    const docRef = await addDoc(collection(db, 'trades'), {
+    const docRef = await addDoc(collection(db, 'portfolios', portfolioId, 'trades'), {
       ...tradeData,
+      portfolioId,
       date: serverTimestamp()
     });
     return docRef.id;
@@ -142,8 +143,7 @@ export const addTrade = async (tradeData: Omit<Trade, 'id'>) => {
 export const getTrades = async (portfolioId: string): Promise<Trade[]> => {
   try {
     const q = query(
-      collection(db, 'trades'),
-      where('portfolioId', '==', portfolioId),
+      collection(db, 'portfolios', portfolioId, 'trades'),
       orderBy('date', 'desc')
     );
     const querySnapshot = await getDocs(q);
@@ -157,18 +157,18 @@ export const getTrades = async (portfolioId: string): Promise<Trade[]> => {
   }
 };
 
-export const updateTrade = async (tradeId: string, updates: Partial<Trade>) => {
+export const updateTrade = async (portfolioId: string, tradeId: string, updates: Partial<Trade>) => {
   try {
-    await updateDoc(doc(db, 'trades', tradeId), updates);
+    await updateDoc(doc(db, 'portfolios', portfolioId, 'trades', tradeId), updates);
   } catch (error) {
     console.error('Error updating trade:', error);
     throw error;
   }
 };
 
-export const deleteTrade = async (tradeId: string) => {
+export const deleteTrade = async (portfolioId: string, tradeId: string) => {
   try {
-    await deleteDoc(doc(db, 'trades', tradeId));
+    await deleteDoc(doc(db, 'portfolios', portfolioId, 'trades', tradeId));
   } catch (error) {
     console.error('Error deleting trade:', error);
     throw error;
@@ -182,6 +182,36 @@ export const addPosition = async (positionData: Omit<Position, 'id'>) => {
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
+    
+    // Create BuyToOpen trade record
+    await addTrade(positionData.portfolioId, {
+      symbol: positionData.symbol,
+      type: 'BuyToOpen',
+      quantity: positionData.quantity,
+      price: positionData.openPrice,
+      fees: positionData.fees,
+      positionId: docRef.id,
+      notes: `Opened position in ${positionData.name}`
+    });
+    
+    // Update portfolio cash balance (decrease cash for purchase)
+    const portfolioRef = doc(db, 'portfolios', positionData.portfolioId);
+    const portfolioDoc = await getDoc(portfolioRef);
+    
+    if (portfolioDoc.exists()) {
+      const portfolioData = portfolioDoc.data();
+      const currentCash = portfolioData.cashBalance || 0;
+      const totalCost = (positionData.totalValue || 0) + (positionData.fees || 0);
+      
+      await updateDoc(portfolioRef, {
+        cashBalance: currentCash - totalCost,
+        updatedAt: serverTimestamp()
+      });
+    }
+    
+    // Update portfolio totals after adding position
+    await updatePortfolioTotals(positionData.portfolioId);
+    
     return docRef.id;
   } catch (error) {
     console.error('Error adding position:', error);
@@ -219,7 +249,7 @@ export const updatePosition = async (positionId: string, updates: Partial<Positi
   }
 };
 
-export const closePosition = async (positionId: string, closePrice: number, quantityToClose?: number) => {
+export const closePosition = async (positionId: string, closePrice: number, quantityToClose?: number, closeFees?: number) => {
   try {
     const positionDoc = await getDoc(doc(db, 'positions', positionId));
     if (!positionDoc.exists()) {
@@ -228,6 +258,7 @@ export const closePosition = async (positionId: string, closePrice: number, quan
     
     const position = positionDoc.data() as Position;
     const closeQuantity = quantityToClose || position.quantity;
+    const fees = closeFees || 0;
     
     if (closeQuantity > position.quantity) {
       throw new Error('Cannot close more than the available quantity');
@@ -235,6 +266,9 @@ export const closePosition = async (positionId: string, closePrice: number, quan
     
     const gainLoss = (closePrice - position.openPrice) * closeQuantity;
     const gainLossPercent = ((closePrice - position.openPrice) / position.openPrice) * 100;
+    
+    // Calculate cash received from closing position (proceeds minus fees)
+    const cashReceived = (closePrice * closeQuantity) - fees;
     
     if (closeQuantity === position.quantity) {
       // Full close - update the existing position
@@ -245,7 +279,19 @@ export const closePosition = async (positionId: string, closePrice: number, quan
         gainLoss,
         gainLossPercent,
         totalValue: closePrice * closeQuantity,
+        fees: fees,
         updatedAt: serverTimestamp()
+      });
+      
+      // Create SellToClose trade record for full close
+      await addTrade(position.portfolioId, {
+        symbol: position.symbol,
+        type: 'SellToClose',
+        quantity: closeQuantity,
+        price: closePrice,
+        fees: fees,
+        positionId: positionId,
+        notes: `Closed full position in ${position.name}`
       });
     } else {
       // Partial close - create a new closed position and update the original
@@ -258,19 +304,31 @@ export const closePosition = async (positionId: string, closePrice: number, quan
         gainLoss,
         gainLossPercent,
         totalValue: closePrice * closeQuantity,
+        fees: fees,
         createdAt: new Date(),
         updatedAt: new Date()
       };
       
       // Remove the id from the data to avoid conflicts
-      delete (closedPositionData as any).id;
+      const { id: _, ...positionDataWithoutId } = closedPositionData;
       
       // Create new closed position
-      await addDoc(collection(db, 'positions'), {
-        ...closedPositionData,
+      const newClosedPositionDoc = await addDoc(collection(db, 'positions'), {
+        ...positionDataWithoutId,
         closeDate: serverTimestamp(),
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
+      });
+      
+      // Create SellToClose trade record for partial close
+      await addTrade(position.portfolioId, {
+        symbol: position.symbol,
+        type: 'SellToClose',
+        quantity: closeQuantity,
+        price: closePrice,
+        fees: fees,
+        positionId: newClosedPositionDoc.id,
+        notes: `Closed partial position in ${position.name}`
       });
       
       // Update original position with remaining quantity
@@ -283,15 +341,132 @@ export const closePosition = async (positionId: string, closePrice: number, quan
         updatedAt: serverTimestamp()
       });
     }
+
+    // Update portfolio cash balance (increase cash for sale proceeds)
+    const portfolioRef = doc(db, 'portfolios', position.portfolioId);
+    const portfolioDoc = await getDoc(portfolioRef);
+    
+    if (portfolioDoc.exists()) {
+      const portfolioData = portfolioDoc.data();
+      const currentCash = portfolioData.cashBalance || 0;
+      
+      await updateDoc(portfolioRef, {
+        cashBalance: currentCash + cashReceived,
+        updatedAt: serverTimestamp()
+      });
+    }
+
+    // Update portfolio totals after closing position
+    await updatePortfolioTotals(position.portfolioId);
   } catch (error) {
     console.error('Error closing position:', error);
     throw error;
   }
 };
 
+export const calculatePortfolioTotals = async (portfolioId: string) => {
+  try {
+    const positions = await getPositions(portfolioId);
+    
+    let totalValue = 0;
+    let totalGainLoss = 0;
+    let totalInvestment = 0;
+    
+    positions.forEach(position => {
+      if (position.status === 'closed') {
+        // For closed positions, use the actual closing values
+        totalValue += position.totalValue;
+        totalGainLoss += position.gainLoss;
+        totalInvestment += position.openPrice * position.quantity;
+      } else {
+        // For open positions, use current values (assuming current price equals open price for now)
+        totalValue += position.totalValue;
+        totalGainLoss += position.gainLoss;
+        totalInvestment += position.openPrice * position.quantity;
+      }
+    });
+    
+    const totalGainLossPercent = totalInvestment > 0 ? (totalGainLoss / totalInvestment) * 100 : 0;
+    
+    return {
+      totalValue,
+      totalGainLoss,
+      totalGainLossPercent
+    };
+  } catch (error) {
+    console.error('Error calculating portfolio totals:', error);
+    throw error;
+  }
+};
+
+export const updatePortfolioTotals = async (portfolioId: string) => {
+  try {
+    const totals = await calculatePortfolioTotals(portfolioId);
+    
+    await updateDoc(doc(db, 'portfolios', portfolioId), {
+      totalValue: totals.totalValue,
+      totalGainLoss: totals.totalGainLoss,
+      totalGainLossPercent: totals.totalGainLossPercent,
+      updatedAt: serverTimestamp()
+    });
+  } catch (error) {
+    console.error('Error updating portfolio totals:', error);
+    throw error;
+  }
+};
+
+export const getClosedPositions = async (portfolioId: string): Promise<Position[]> => {
+  try {
+    const q = query(
+      collection(db, 'positions'),
+      where('portfolioId', '==', portfolioId),
+      where('status', '==', 'closed'),
+      orderBy('closeDate', 'desc')
+    );
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    } as Position));
+  } catch (error) {
+    console.error('Error getting closed positions:', error);
+    throw error;
+  }
+};
+
+export const getOpenPositions = async (portfolioId: string): Promise<Position[]> => {
+  try {
+    const q = query(
+      collection(db, 'positions'),
+      where('portfolioId', '==', portfolioId),
+      where('status', '==', 'open'),
+      orderBy('createdAt', 'desc')
+    );
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    } as Position));
+  } catch (error) {
+    console.error('Error getting open positions:', error);
+    throw error;
+  }
+};
+
 export const deletePosition = async (positionId: string) => {
   try {
+    // Get the position data before deleting to access portfolioId
+    const positionDoc = await getDoc(doc(db, 'positions', positionId));
+    if (!positionDoc.exists()) {
+      throw new Error('Position not found');
+    }
+    
+    const position = positionDoc.data() as Position;
+    
     await deleteDoc(doc(db, 'positions', positionId));
+    
+    // Update portfolio totals after deleting position
+    await updatePortfolioTotals(position.portfolioId);
   } catch (error) {
     console.error('Error deleting position:', error);
     throw error;

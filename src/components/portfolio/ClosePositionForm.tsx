@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { closePosition } from '@/lib/firestore';
 import { Position } from '@/types';
+import { formatCurrency, formatPercentage } from '@/lib/currency';
 
 interface ClosePositionFormProps {
   position: Position;
@@ -13,6 +14,7 @@ interface ClosePositionFormProps {
 export default function ClosePositionForm({ position, onSuccess, onCancel }: ClosePositionFormProps) {
   const [closePrice, setClosePrice] = useState('');
   const [quantity, setQuantity] = useState(position.quantity.toString());
+  const [fees, setFees] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -26,6 +28,7 @@ export default function ClosePositionForm({ position, onSuccess, onCancel }: Clo
 
     const priceNum = parseFloat(closePrice);
     const quantityNum = parseFloat(quantity);
+    const feesNum = parseFloat(fees) || 0;
     
     if (priceNum <= 0) {
       setError('Closing price must be a positive number');
@@ -37,11 +40,16 @@ export default function ClosePositionForm({ position, onSuccess, onCancel }: Clo
       return;
     }
 
+    if (feesNum < 0) {
+      setError('Fees cannot be negative');
+      return;
+    }
+
     setLoading(true);
     setError('');
 
     try {
-      await closePosition(position.id, priceNum, quantityNum);
+      await closePosition(position.id, priceNum, quantityNum, feesNum);
       
       if (onSuccess) {
         onSuccess();
@@ -75,10 +83,10 @@ export default function ClosePositionForm({ position, onSuccess, onCancel }: Clo
               <span className="font-medium">{position.symbol}</span> - {position.name}
             </p>
             <p className="text-sm text-gray-600">
-              Quantity: {position.quantity} @ ${position.openPrice.toFixed(2)}
+              Quantity: {position.quantity} @ {formatCurrency(position.openPrice)}
             </p>
             <p className="text-sm text-gray-600">
-              Current Value: ${(position.openPrice * position.quantity).toFixed(2)}
+              Current Value: {formatCurrency(position.openPrice * position.quantity)}
             </p>
           </div>
           
@@ -127,6 +135,22 @@ export default function ClosePositionForm({ position, onSuccess, onCancel }: Clo
               </div>
             </div>
 
+            <div>
+              <label htmlFor="fees" className="block text-sm font-medium text-gray-700 mb-1">
+                Transaction Fees
+              </label>
+              <input
+                type="number"
+                id="fees"
+                value={fees}
+                onChange={(e) => setFees(e.target.value)}
+                min="0"
+                step="0.01"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-gray-900"
+                placeholder="0.00"
+              />
+            </div>
+
             {closePrice && quantity && (
               <div className="space-y-3">
                 {isPartialClose && (
@@ -145,12 +169,12 @@ export default function ClosePositionForm({ position, onSuccess, onCancel }: Clo
                 <div className="p-3 bg-blue-50 rounded-md">
                   <h4 className="text-sm font-medium text-gray-900 mb-2">Projected Results for Closed Portion:</h4>
                   <p className="text-sm text-gray-600">
-                    Closing Value: ${(parseFloat(closePrice) * projectedQuantity).toFixed(2)}
+                    Closing Value: {formatCurrency(parseFloat(closePrice) * projectedQuantity)}
                   </p>
                   <p className={`text-sm font-medium ${
                     projectedGainLoss >= 0 ? 'text-green-600' : 'text-red-600'
                   }`}>
-                    Gain/Loss: ${projectedGainLoss.toFixed(2)} ({projectedGainLossPercent.toFixed(2)}%)
+                    Gain/Loss: {formatCurrency(projectedGainLoss)} ({formatPercentage(projectedGainLossPercent)})
                   </p>
                 </div>
               </div>

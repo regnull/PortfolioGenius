@@ -12,7 +12,10 @@ export interface Portfolio {
   userId: string;
   name: string;
   description?: string;
+  goal?: string;
   isPublic: boolean;
+  isBotPortfolio?: boolean;
+  cashBalance: number;
   createdAt: Date;
   updatedAt: Date;
   totalValue: number;
@@ -24,11 +27,12 @@ export interface Trade {
   id: string;
   portfolioId: string;
   symbol: string;
-  type: 'buy' | 'sell';
+  type: 'BuyToOpen' | 'SellToClose';
   quantity: number;
   price: number;
   date: Date;
   fees?: number;
+  positionId?: string;
   notes?: string;
 }
 
@@ -48,6 +52,7 @@ export interface Position {
   totalValue: number;
   gainLoss: number;
   gainLossPercent: number;
+  fees?: number;
   createdAt: Date;
   updatedAt: Date;
 }

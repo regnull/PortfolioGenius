@@ -1,20 +1,22 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { getPortfolio, getPositions, deletePosition } from '@/lib/firestore';
 import { Portfolio, Position } from '@/types';
+import { formatCurrency, formatPercentage } from '@/lib/currency';
+import { useStockPrices, PositionWithCurrentPrice } from '@/hooks/useStockPrices';
 import AddPositionForm from '@/components/portfolio/AddPositionForm';
 import ClosePositionForm from '@/components/portfolio/ClosePositionForm';
 import Link from 'next/link';
 
 export default function PortfolioPage() {
   const params = useParams();
-  const router = useRouter();
   const { user } = useAuth();
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
   const [positions, setPositions] = useState<Position[]>([]);
+  const { positions: positionsWithPrices, loading: pricesLoading, error: pricesError, lastUpdate, refreshPrices } = useStockPrices(positions);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
@@ -27,6 +29,23 @@ export default function PortfolioPage() {
       setPositions(positionData);
     } catch (err) {
       console.error('Failed to fetch positions:', err);
+    }
+  };
+
+  const refreshPortfolioData = async () => {
+    if (!params.id) return;
+    try {
+      const [portfolioData, positionData] = await Promise.all([
+        getPortfolio(params.id as string),
+        getPositions(params.id as string)
+      ]);
+      
+      if (portfolioData) {
+        setPortfolio(portfolioData);
+      }
+      setPositions(positionData);
+    } catch (err) {
+      console.error('Failed to refresh portfolio data:', err);
     }
   };
 
@@ -67,13 +86,14 @@ export default function PortfolioPage() {
     
     try {
       await deletePosition(positionId);
-      setPositions(positions.filter(p => p.id !== positionId));
+      // Refresh portfolio data after deleting position
+      refreshPortfolioData();
     } catch (err) {
       alert('Failed to delete position');
     }
   };
 
-  const renderPositionsTable = (filteredPositions: Position[], type: 'open' | 'closed') => {
+  const renderPositionsTable = (filteredPositions: PositionWithCurrentPrice[], type: 'open' | 'closed') => {
     if (filteredPositions.length === 0) {
       return (
         <div className="text-center py-12 text-gray-500">
@@ -95,6 +115,9 @@ export default function PortfolioPage() {
               <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Type</th>
               <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
               <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Open Price</th>
+              {type === 'open' && (
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Current Price</th>
+              )}
               {type === 'closed' && (
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Close Price</th>
               )}
@@ -121,21 +144,31 @@ export default function PortfolioPage() {
                   {position.quantity}
                 </td>
                 <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                  ${position.openPrice.toFixed(2)}
+                  {formatCurrency(position.openPrice)}
                 </td>
+                {type === 'open' && (
+                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <span className={`font-medium ${
+                      position.currentPrice > position.openPrice ? 'text-green-600' : 
+                      position.currentPrice < position.openPrice ? 'text-red-600' : 'text-gray-900'
+                    }`}>
+                      {formatCurrency(position.currentPrice)}
+                    </span>
+                  </td>
+                )}
                 {type === 'closed' && (
                   <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                    ${position.closePrice?.toFixed(2) || 'N/A'}
+                    {position.closePrice ? formatCurrency(position.closePrice) : 'N/A'}
                   </td>
                 )}
                 <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                  ${position.totalValue.toFixed(2)}
+                  {formatCurrency(type === 'open' ? position.currentTotalValue : position.totalValue)}
                 </td>
                 <td className="px-4 py-4 whitespace-nowrap text-sm">
                   <span className={`font-medium ${
-                    position.gainLoss >= 0 ? 'text-green-600' : 'text-red-600'
+                    (type === 'open' ? position.currentGainLoss : position.gainLoss) >= 0 ? 'text-green-600' : 'text-red-600'
                   }`}>
-                    ${position.gainLoss.toFixed(2)} ({position.gainLossPercent.toFixed(2)}%)
+                    {formatCurrency(type === 'open' ? position.currentGainLoss : position.gainLoss)} ({formatPercentage(type === 'open' ? position.currentGainLossPercent : position.gainLossPercent)})
                   </span>
                 </td>
                 <td className="px-4 py-4 whitespace-nowrap text-sm space-x-2">
@@ -208,6 +241,36 @@ export default function PortfolioPage() {
     );
   }
 
+  // Calculate current portfolio metrics
+  const calculateCurrentPortfolioValue = () => {
+    return positionsWithPrices.reduce((sum, position) => {
+      if (position.status === 'open') {
+        return sum + position.currentTotalValue;
+      } else {
+        return sum + position.totalValue;
+      }
+    }, 0);
+  };
+
+  const calculateCurrentPortfolioGainLoss = () => {
+    return positionsWithPrices.reduce((sum, position) => {
+      if (position.status === 'open') {
+        return sum + position.currentGainLoss;
+      } else {
+        return sum + position.gainLoss;
+      }
+    }, 0);
+  };
+
+  const calculateCurrentPortfolioGainLossPercent = () => {
+    const totalInvestment = positionsWithPrices.reduce((sum, position) => {
+      return sum + (position.openPrice * position.quantity);
+    }, 0);
+    
+    if (totalInvestment === 0) return 0;
+    return (calculateCurrentPortfolioGainLoss() / totalInvestment) * 100;
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -228,40 +291,82 @@ export default function PortfolioPage() {
                     Public
                   </span>
                 )}
+                {portfolio.isBotPortfolio === true && (
+                  <span className="px-3 py-1 bg-purple-100 text-purple-800 text-sm font-medium rounded-full">
+                    🤖 Bot Portfolio
+                  </span>
+                )}
               </div>
               {portfolio.description && (
                 <p className="mt-2 text-gray-600">{portfolio.description}</p>
+              )}
+              {portfolio.goal && (
+                <div className="mt-3 p-3 bg-blue-50 rounded-lg">
+                  <h4 className="text-sm font-medium text-blue-900 mb-1">Investment Goal</h4>
+                  <p className="text-sm text-blue-800">{portfolio.goal}</p>
+                </div>
               )}
             </div>
           </div>
         </div>
 
         {/* Portfolio Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <div className="bg-white rounded-lg shadow-md p-6">
             <h3 className="text-sm font-medium text-gray-500 mb-2">Total Value</h3>
             <p className="text-3xl font-bold text-gray-900">
-              ${portfolio.totalValue.toFixed(2)}
+              {formatCurrency(calculateCurrentPortfolioValue())}
+            </p>
+            {pricesLoading && <p className="text-xs text-gray-500 mt-1">Updating prices...</p>}
+          </div>
+          
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <h3 className="text-sm font-medium text-gray-500 mb-2">Cash Balance</h3>
+            <p className="text-3xl font-bold text-gray-900">
+              {formatCurrency(portfolio.cashBalance || 0)}
             </p>
           </div>
           
           <div className="bg-white rounded-lg shadow-md p-6">
-            <h3 className="text-sm font-medium text-gray-500 mb-2">Total Gain/Loss</h3>
+            <h3 className="text-sm font-medium text-gray-500 mb-2">Unrealized Gain/Loss</h3>
             <p className={`text-3xl font-bold ${
-              portfolio.totalGainLoss >= 0 ? 'text-green-600' : 'text-red-600'
+              calculateCurrentPortfolioGainLoss() >= 0 ? 'text-green-600' : 'text-red-600'
             }`}>
-              ${portfolio.totalGainLoss.toFixed(2)}
+              {formatCurrency(calculateCurrentPortfolioGainLoss())}
             </p>
           </div>
           
           <div className="bg-white rounded-lg shadow-md p-6">
-            <h3 className="text-sm font-medium text-gray-500 mb-2">Total Gain/Loss %</h3>
+            <h3 className="text-sm font-medium text-gray-500 mb-2">Unrealized Gain/Loss %</h3>
             <p className={`text-3xl font-bold ${
-              portfolio.totalGainLossPercent >= 0 ? 'text-green-600' : 'text-red-600'
+              calculateCurrentPortfolioGainLossPercent() >= 0 ? 'text-green-600' : 'text-red-600'
             }`}>
-              {portfolio.totalGainLossPercent.toFixed(2)}%
+              {formatPercentage(calculateCurrentPortfolioGainLossPercent())}
             </p>
           </div>
+        </div>
+        
+        {/* Price Update Info */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center space-x-4">
+            {lastUpdate && (
+              <p className="text-sm text-gray-500">
+                Last updated: {lastUpdate.toLocaleTimeString()}
+              </p>
+            )}
+            {pricesError && (
+              <p className="text-sm text-red-600">
+                {pricesError}
+              </p>
+            )}
+          </div>
+          <button
+            onClick={refreshPrices}
+            disabled={pricesLoading}
+            className="px-3 py-1 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 transition-colors"
+          >
+            {pricesLoading ? 'Updating...' : 'Refresh Prices'}
+          </button>
         </div>
 
         {/* Close Position Modal */}
@@ -269,8 +374,8 @@ export default function PortfolioPage() {
           <ClosePositionForm
             position={positionToClose}
             onSuccess={() => {
-              // Refresh positions after closing
-              fetchPositions();
+              // Refresh portfolio data after closing position
+              refreshPortfolioData();
               setPositionToClose(null);
             }}
             onCancel={() => setPositionToClose(null)}
@@ -283,7 +388,8 @@ export default function PortfolioPage() {
             <AddPositionForm
               portfolioId={portfolio.id}
               onSuccess={(position) => {
-                setPositions([position, ...positions]);
+                // Refresh portfolio data after adding position
+                refreshPortfolioData();
                 setShowAddForm(false);
               }}
               onCancel={() => setShowAddForm(false)}
@@ -303,7 +409,7 @@ export default function PortfolioPage() {
             </button>
           </div>
           
-          {renderPositionsTable(positions.filter(p => p.status === 'open'), 'open')}
+          {renderPositionsTable(positionsWithPrices.filter(p => p.status === 'open'), 'open')}
         </div>
 
         {/* Closed Positions Section */}
@@ -312,7 +418,41 @@ export default function PortfolioPage() {
             <h2 className="text-xl font-semibold text-gray-900">Closed Positions</h2>
           </div>
           
-          {renderPositionsTable(positions.filter(p => p.status === 'closed'), 'closed')}
+          {positionsWithPrices.filter(p => p.status === 'closed').length > 0 && (
+            <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+              <h3 className="text-lg font-medium text-gray-900 mb-3">Closed Positions Summary</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <p className="text-sm text-gray-500">Total Closed Value</p>
+                  <p className="text-lg font-semibold text-gray-900">
+                    {formatCurrency(positionsWithPrices.filter(p => p.status === 'closed').reduce((sum, p) => sum + p.totalValue, 0))}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Total Realized P&L</p>
+                  <p className={`text-lg font-semibold ${
+                    positionsWithPrices.filter(p => p.status === 'closed').reduce((sum, p) => sum + p.gainLoss, 0) >= 0 
+                      ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {formatCurrency(positionsWithPrices.filter(p => p.status === 'closed').reduce((sum, p) => sum + p.gainLoss, 0))}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Average Return</p>
+                  <p className={`text-lg font-semibold ${
+                    positionsWithPrices.filter(p => p.status === 'closed').reduce((sum, p) => sum + p.gainLossPercent, 0) / 
+                    Math.max(positionsWithPrices.filter(p => p.status === 'closed').length, 1) >= 0 
+                      ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {formatPercentage(positionsWithPrices.filter(p => p.status === 'closed').reduce((sum, p) => sum + p.gainLossPercent, 0) / 
+                      Math.max(positionsWithPrices.filter(p => p.status === 'closed').length, 1))}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {renderPositionsTable(positionsWithPrices.filter(p => p.status === 'closed'), 'closed')}
         </div>
 
         {/* Portfolio Info */}
@@ -322,13 +462,13 @@ export default function PortfolioPage() {
             <div>
               <span className="text-gray-500">Created:</span>
               <span className="ml-2 text-gray-900">
-                {portfolio.createdAt.toDate().toLocaleDateString()}
+                {portfolio.createdAt instanceof Date ? portfolio.createdAt.toLocaleDateString() : new Date(portfolio.createdAt).toLocaleDateString()}
               </span>
             </div>
             <div>
               <span className="text-gray-500">Last Updated:</span>
               <span className="ml-2 text-gray-900">
-                {portfolio.updatedAt.toDate().toLocaleDateString()}
+                {portfolio.updatedAt instanceof Date ? portfolio.updatedAt.toLocaleDateString() : new Date(portfolio.updatedAt).toLocaleDateString()}
               </span>
             </div>
             <div>
