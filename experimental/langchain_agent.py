@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-LangChain Agent with Financial Data Tools
-Supports Yahoo Finance and Tiingo APIs for comprehensive financial data access
+LangChain Agent with Comprehensive Financial Data and Web Search Tools
+Supports Yahoo Finance, Tiingo APIs, and Brave Search for complete information access
 """
 
 import os
 import sys
+from datetime import datetime
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain.agents import create_openai_tools_agent, AgentExecutor
@@ -16,6 +17,9 @@ from yahoo_finance_tool import get_yahoo_finance_tools
 
 # Import Tiingo tools
 from tiingo_tool import get_tiingo_tools
+
+# Import Brave Search tools
+from brave_search_tool import get_brave_search_tools
 
 def main():
     # Load environment variables
@@ -29,25 +33,32 @@ def main():
     
     # Initialize the language model
     llm = ChatOpenAI(
-        model="gpt-4",
-        temperature=0.1,
+        model="gpt-4o",
+        # temperature=0.1,
         api_key=openai_api_key
     )
     
     # Get all available tools
     yahoo_tools = get_yahoo_finance_tools()
     tiingo_tools = get_tiingo_tools()
+    brave_search_tools = get_brave_search_tools()
     
     # Combine all tools
-    # all_tools = yahoo_tools + tiingo_tools
-    all_tools = tiingo_tools
+    all_tools = yahoo_tools + tiingo_tools + brave_search_tools
     
-    # Define the prompt template
+    # Define the prompt template for portfolio construction
     prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are a helpful AI financial assistant with access to comprehensive financial data from multiple sources. 
-        You can help users with stock market information, company analysis, financial data, news, and market insights.
+        ("system", """You are an expert financial advisor and portfolio manager with access to comprehensive financial data and research tools.
         
-        You have access to the following financial data tools:
+        Your task is to construct a specific investment portfolio based on the user's requirements.
+        
+        You have access to the following tools:
+        
+        YAHOO FINANCE TOOLS:
+        - get_stock_price: Get current and historical stock prices from Yahoo Finance
+        - get_stock_news: Get recent news articles for companies from Yahoo Finance
+        - get_stock_info: Get comprehensive company information and financial metrics
+        - get_market_summary: Get market indices and overall market performance
         
         TIINGO TOOLS:
         - get_tiingo_stock_price: Get current and historical stock prices from Tiingo
@@ -56,13 +67,58 @@ def main():
         - get_tiingo_fundamentals: Get fundamental financial metrics and ratios
         - get_tiingo_crypto_price: Get cryptocurrency prices and historical data
         
-        Always provide clear, helpful responses and explain the data sources you're using.
-        If rate limiting occurs, try alternative data sources.
+        BRAVE SEARCH TOOLS:
+        - brave_web_search: Search the web for current information and real-time data
+        - brave_news_search: Search for recent news articles from across the web
+        - brave_image_search: Search for images on any topic
+        - brave_video_search: Search for videos including tutorials and explanations
+        - brave_ai_summarizer: Get AI-powered summaries of complex topics
         
-        Format your responses in a clear, professional manner suitable for financial analysis.
+        For portfolio construction, follow these steps:
+        1. Research current market conditions and economic outlook
+        2. Analyze suitable asset classes for medium-risk, 10-year investments
+        3. Get current prices and fundamental analysis for recommended securities
+        4. Construct a diversified portfolio with specific allocations
+        5. Provide detailed reasoning for each recommendation
+        
+        CRITICAL: You must format your final portfolio recommendation as valid JSON with the following structure:
+        
+        {{
+          "portfolio_summary": {{
+            "total_investment": "$10,000",
+            "risk_level": "Medium",
+            "time_horizon": "10 years",
+            "date_created": "current_date"
+          }},
+          "recommendations": [
+            {{
+              "ticker_symbol": "AAPL",
+              "allocation_percent": 15.0,
+              "rationale": "Strong fundamentals, market leader in technology sector with consistent revenue growth",
+              "notes": "Current price: $XXX.XX, P/E ratio: XX.X, recommended for long-term growth"
+            }}
+          ],
+          "portfolio_allocation": {{
+            "stocks": XX.X,
+            "etfs": XX.X,
+            "bonds": XX.X,
+            "alternatives": XX.X
+          }},
+          "risk_assessment": "Brief risk analysis",
+          "expected_annual_return": "X-X%",
+          "rebalancing_schedule": "Quarterly/Semi-annual/Annual"
+        }}
+        
+        Each recommendation must include:
+        - ticker_symbol: The stock/ETF ticker symbol
+        - allocation_percent: Percentage of total portfolio (must sum to 100%)
+        - rationale: Investment thesis and reasoning for inclusion
+        - notes: Additional details including current price, key metrics, and specific considerations
+        
+        Return ONLY the JSON - do not include any additional text or explanation outside the JSON structure.
         """),
         ("user", "{input}"),
-        ("assistant", "I'll help you with that financial question. Let me gather the relevant data for you."),
+        ("assistant", "I'll research current market conditions and construct a comprehensive portfolio recommendation in JSON format."),
         ("placeholder", "{agent_scratchpad}"),
     ])
     
@@ -72,72 +128,65 @@ def main():
     # Create the agent executor
     agent_executor = AgentExecutor(agent=agent, tools=all_tools, verbose=True)
     
-    # Check if a query was provided as a command line argument
-    if len(sys.argv) > 1:
-        query = " ".join(sys.argv[1:])
-        print(f"Query: {query}")
-        print("=" * 50)
-        
-        try:
-            result = agent_executor.invoke({"input": query})
-            print("\nResponse:")
-            print(result["output"])
-        except Exception as e:
-            print(f"Error processing query: {e}")
-        
-        return
+    # Define the specific portfolio construction request
+    today_date = datetime.now().strftime("%B %d, %Y")
+    portfolio_request = f"""
+    Today is {today_date}.
     
-    # Interactive mode
-    print("Financial AI Assistant")
-    print("=" * 50)
-    print("Available data sources: Yahoo Finance, Tiingo")
-    print("Type 'help' for available commands or 'quit' to exit")
+    I need you to construct a medium-risk investment portfolio with the following specifications:
+    
+    PORTFOLIO REQUIREMENTS:
+    - Investment Amount: $10,000
+    - Risk Level: Medium (balanced growth and stability)
+    - Time Horizon: 10 years
+    - Investment Type: Mix of individual stocks and ETFs
+    - Diversification: Multiple sectors and asset classes
+    
+    DELIVERABLES NEEDED:
+    1. Current market analysis and economic outlook
+    2. Asset allocation strategy (stocks vs bonds vs alternatives)
+    3. Specific stock recommendations with:
+       - Current prices
+       - Fundamental analysis
+       - Investment thesis
+       - Position size in dollars
+    4. Specific ETF recommendations with:
+       - Current prices
+       - Expense ratios
+       - Investment thesis
+       - Position size in dollars
+    5. Total portfolio allocation breakdown
+    6. Risk assessment and expected returns
+    7. Portfolio rebalancing recommendations
+    
+    Please provide specific ticker symbols, current prices, and exact dollar allocations for each position.
+    Research current market conditions and use fundamental analysis to support your recommendations.
+    """
+    
+    print("🎯 Portfolio Construction Request")
+    print("=" * 60)
+    print("Investment Amount: $10,000")
+    print("Risk Level: Medium")
+    print("Time Horizon: 10 years")
+    print("Focus: Stocks and ETFs")
+    print("=" * 60)
     print()
     
-    while True:
-        try:
-            user_input = input("Ask me about stocks, market data, or financial news: ").strip()
-            
-            if user_input.lower() in ['quit', 'exit', 'q']:
-                print("Goodbye!")
-                break
-            
-            if user_input.lower() == 'help':
-                print("\nAvailable commands:")
-                print("- Ask about stock prices: 'What is the current price of AAPL?'")
-                print("- Get company info: 'Tell me about Apple Inc'")
-                print("- Get financial news: 'What's the latest news about Tesla?'")
-                print("- Get fundamentals: 'What are the key metrics for Microsoft?'")
-                print("- Get crypto prices: 'What's the current Bitcoin price?'")
-                print("- Market summary: 'How are the markets doing today?'")
-                print("- Compare data: 'Compare Apple and Google stock performance'")
-                print("- Type 'quit' to exit")
-                print()
-                continue
-            
-            if not user_input:
-                continue
-            
-            print(f"\nQuery: {user_input}")
-            print("-" * 40)
-            
-            # Process the query
-            try:
-                result = agent_executor.invoke({"input": user_input})
-                print("\nResponse:")
-                print(result["output"])
-            except Exception as e:
-                print(f"Error processing query: {e}")
-                print("Please try again with a different query.")
-            
-            print("\n" + "=" * 50 + "\n")
-            
-        except KeyboardInterrupt:
-            print("\nGoodbye!")
-            break
-        except Exception as e:
-            print(f"An error occurred: {e}")
-            print("Please try again.")
+    print("🔍 Starting portfolio analysis and construction...")
+    print("-" * 50)
+    
+    try:
+        result = agent_executor.invoke({"input": portfolio_request})
+        print("\n📊 PORTFOLIO RECOMMENDATION:")
+        print("=" * 60)
+        print(result["output"])
+        print("\n" + "=" * 60)
+        print("✅ Portfolio construction complete!")
+    except Exception as e:
+        print(f"❌ Error constructing portfolio: {e}")
+        print("Please check your API keys and try again.")
+    
+    return
 
 if __name__ == "__main__":
     main()

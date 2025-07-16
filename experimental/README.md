@@ -1,12 +1,13 @@
-# Experimental Langchain Agent with Multi-Source Financial Data
+# Comprehensive AI Assistant with Financial Data & Web Search
 
-This directory contains experimental code for testing Langchain agents with OpenAI integration and comprehensive financial data access from multiple sources.
+This directory contains a comprehensive AI assistant with access to financial data and web search capabilities through multiple integrated APIs.
 
 ## Overview
 
-The agent now supports **dual data sources** for comprehensive financial analysis:
+The assistant now supports **three major data sources** for comprehensive analysis:
 - **Yahoo Finance**: Free stock data, news, and market summaries
 - **Tiingo**: Professional-grade financial data with fundamentals and cryptocurrency support
+- **Brave Search**: Real-time web search, news, images, videos, and AI-powered summaries
 
 ## Setup
 
@@ -23,6 +24,9 @@ OPENAI_API_KEY=your_openai_api_key_here
 
 # Required for Tiingo data (get free key at https://www.tiingo.com/)
 TIINGO_API_KEY=your_tiingo_api_key_here
+
+# Required for Brave Search (get free key at https://api.search.brave.com/)
+BRAVE_SEARCH_API_KEY=your_brave_search_api_key_here
 ```
 
 ## Usage
@@ -35,30 +39,33 @@ python langchain_agent.py
 ### Single Query Mode
 ```bash
 python langchain_agent.py "What is the current price of Apple stock?"
+python langchain_agent.py "Latest news about artificial intelligence"
+python langchain_agent.py "Summarize renewable energy trends"
 ```
 
-### Test Individual Tools
+### Test All Integrations
 ```bash
-# Test Yahoo Finance tools
-python test_yahoo_finance.py
+# Run comprehensive tests
+python test_comprehensive.py
 
-# Test Tiingo tools
-python tiingo_tool.py
+# Test individual components
+python test_yahoo_finance.py    # Yahoo Finance tools
+python tiingo_tool.py          # Tiingo tools
+python brave_search_tool.py    # Brave Search tools
 ```
 
 ## Features
 
-- **Dual-Source Financial AI Assistant**: Specialized agent with access to multiple financial data sources
-- **Yahoo Finance Integration**: Real-time stock data, news, and market information
-- **Tiingo Integration**: Professional-grade financial data, fundamentals, and cryptocurrency support
-- **Interactive Mode**: Chat with the agent in real-time
-- **Single Query Mode**: Run one-off queries from command line
-- **Automatic Source Selection**: Agent chooses the best data source for each query
-- **Comprehensive Testing**: Test suite for all tools and agent integration
+- **🤖 Comprehensive AI Assistant**: Access to financial data, web search, and real-time information
+- **📊 Multi-Source Financial Data**: Yahoo Finance, Tiingo for stocks, crypto, and fundamentals
+- **🔍 Advanced Web Search**: Brave Search for current events, research, and multimedia content
+- **🔄 Intelligent Tool Selection**: Agent automatically chooses the best data source for each query
+- **📱 Interactive Mode**: Real-time chat interface with help commands
+- **⚡ Real-time Data**: Access to current market data, news, and web information
 
 ## Available Tools
 
-### Yahoo Finance Tools
+### Yahoo Finance Tools (4 tools)
 
 #### 1. Stock Price Tool (`get_stock_price`)
 - Get current and historical stock prices
@@ -80,7 +87,7 @@ python tiingo_tool.py
 - Parameters: `indices` (list of market indices)
 - Returns: current values, changes for major indices (S&P 500, Dow, NASDAQ)
 
-### Tiingo Tools
+### Tiingo Tools (5 tools)
 
 #### 1. Stock Price Tool (`get_tiingo_stock_price`)
 - Get current and historical stock prices with professional-grade data
@@ -107,44 +114,72 @@ python tiingo_tool.py
 - Parameters: `symbol` (e.g., BTCUSD), `start_date`, `end_date`, `frequency`
 - Returns: current and historical crypto prices
 
+### Brave Search Tools (5 tools)
+
+#### 1. Web Search Tool (`brave_web_search`)
+- Search the web for current information and real-time data
+- Parameters: `query`, `count`, `country`, `search_lang`, `safesearch`
+- Returns: web search results with titles, URLs, descriptions, and metadata
+
+#### 2. News Search Tool (`brave_news_search`)
+- Search for recent news articles from across the web
+- Parameters: `query`, `count`, `country`, `search_lang`, `freshness`
+- Returns: recent news articles with titles, URLs, descriptions, and sources
+
+#### 3. Image Search Tool (`brave_image_search`)
+- Search for images on any topic
+- Parameters: `query`, `count`, `safesearch`
+- Returns: image search results with URLs, titles, sources, and metadata
+
+#### 4. Video Search Tool (`brave_video_search`)
+- Search for videos including tutorials and explanations
+- Parameters: `query`, `count`, `country`, `search_lang`
+- Returns: video search results with titles, URLs, descriptions, duration, and creators
+
+#### 5. AI Summarizer Tool (`brave_ai_summarizer`)
+- Get AI-powered summaries of complex topics
+- Parameters: `query`, `count`, `country`, `search_lang`
+- Returns: AI-generated summaries based on multiple search results
+
 ## Example Queries
 
-### Stock Analysis
+### Financial Analysis
 - "What's the current price of Apple stock?"
-- "Compare Apple and Google stock prices from Tiingo"
+- "Compare Apple and Google stock prices from both sources"
 - "Show me Tesla's stock performance over the last month"
+- "What are Netflix's key financial metrics?"
 
-### Company Information
-- "Get detailed information about Microsoft from Tiingo"
-- "Tell me about Netflix's financial metrics"
-- "What's Amazon's market cap and P/E ratio?"
+### Current Events & Research
+- "What are the latest developments in artificial intelligence?"
+- "Recent news about climate change policy"
+- "Summarize renewable energy trends in 2024"
+- "What happened in the stock market today?"
 
-### News & Market Data
-- "What's the latest news about Tesla and Apple?"
+### Market Data & News
+- "Latest news about Tesla and Apple earnings"
 - "How are the major market indices performing today?"
-- "Show me recent news about tech stocks"
+- "What's the current Bitcoin and Ethereum prices?"
+- "Show me recent developments in electric vehicles"
 
-### Fundamentals & Analysis
-- "What are the key financial metrics for Netflix?"
-- "Compare the fundamentals of Apple and Microsoft"
-- "Analyze the performance of tech stocks this month"
-
-### Cryptocurrency
-- "What's the current Bitcoin price?"
-- "Show me Ethereum and Bitcoin price comparison"
-- "What's the trend for major cryptocurrencies?"
+### Multimedia & Educational
+- "Find Python tutorial videos"
+- "Show me images of modern sustainable architecture"
+- "Explain quantum computing with visual examples"
 
 ## Data Sources Comparison
 
-| Feature | Yahoo Finance | Tiingo |
-|---------|---------------|--------|
-| Stock Prices | ✅ Free | ✅ Free tier available |
-| Historical Data | ✅ Extensive | ✅ Extensive |
-| News | ✅ Basic | ✅ Curated & tagged |
-| Fundamentals | ✅ Basic | ✅ Comprehensive |
-| Cryptocurrency | ❌ Limited | ✅ Extensive |
-| Real-time Data | ✅ 15-min delay | ✅ Real-time available |
-| API Reliability | ⚠️ Rate limited | ✅ Stable |
+| Feature | Yahoo Finance | Tiingo | Brave Search |
+|---------|---------------|--------|--------------|
+| Stock Prices | ✅ Free | ✅ Free tier | ❌ N/A |
+| Historical Data | ✅ Extensive | ✅ Extensive | ❌ N/A |
+| News | ✅ Basic | ✅ Curated & tagged | ✅ Real-time web news |
+| Fundamentals | ✅ Basic | ✅ Comprehensive | ❌ N/A |
+| Cryptocurrency | ❌ Limited | ✅ Extensive | ❌ N/A |
+| Real-time Data | ✅ 15-min delay | ✅ Real-time available | ✅ Real-time |
+| Web Search | ❌ N/A | ❌ N/A | ✅ Comprehensive |
+| AI Summaries | ❌ N/A | ❌ N/A | ✅ AI-powered |
+| Images/Videos | ❌ N/A | ❌ N/A | ✅ Extensive |
+| API Reliability | ⚠️ Rate limited | ✅ Stable | ✅ Stable |
 
 ## Configuration
 
@@ -152,22 +187,21 @@ The agent is configured with:
 - Model: `gpt-4` (configurable)
 - Temperature: `0.1` (low for consistent responses)
 - Verbose: `True` (shows reasoning steps)
-- Tools: Combined Yahoo Finance and Tiingo tools
-- Automatic fallback between data sources
+- Tools: All Yahoo Finance, Tiingo, and Brave Search tools
+- Intelligent tool selection based on query type
 
 ## Testing
 
-Run the test suites to verify all tools are working:
+Run the comprehensive test suite to verify all integrations:
 
 ```bash
-# Test Yahoo Finance tools
-python test_yahoo_finance.py
+# Full system test
+python test_comprehensive.py
 
-# Test Tiingo tools
-python tiingo_tool.py
-
-# Test the full agent
-python langchain_agent.py "Test query"
+# Individual component tests
+python test_yahoo_finance.py    # Yahoo Finance integration
+python tiingo_tool.py          # Tiingo integration
+python brave_search_tool.py    # Brave Search integration
 ```
 
 ## Troubleshooting
@@ -175,41 +209,62 @@ python langchain_agent.py "Test query"
 ### Common Issues
 
 1. **Missing API Keys**
-   - Ensure `.env` file contains both `OPENAI_API_KEY` and `TIINGO_API_KEY`
+   - Ensure `.env` file contains all required API keys
    - Get Tiingo key at: https://www.tiingo.com/
+   - Get Brave Search key at: https://api.search.brave.com/
 
 2. **Rate Limiting**
-   - Yahoo Finance: Try using Tiingo as alternative
+   - Yahoo Finance: Agent will automatically use alternatives
    - Tiingo: Free tier has 1,000 requests per day
-   - Agent will automatically try alternative sources
+   - Brave Search: Free tier has 5,000 requests per month
 
 3. **Network Errors**
    - Check internet connection
    - Verify API endpoints are accessible
    - Try again in a few minutes
 
-## Advanced Usage
-
-### Specifying Data Sources
-You can specify which data source to use in your queries:
-- "Get Apple stock price from Yahoo Finance"
-- "Show me Tesla fundamentals from Tiingo"
-- "Compare prices using both Yahoo Finance and Tiingo"
-
 ### API Limits
+
 - **Yahoo Finance**: Rate limited, no official API key required
 - **Tiingo Free Tier**: 1,000 requests/day, 5 symbols per request
-- **Tiingo Paid**: Higher limits and real-time data
+- **Brave Search Free Tier**: 5,000 requests/month, 1 request/second
+- **Tiingo/Brave Paid**: Higher limits and additional features
+
+## Advanced Usage
+
+### Intelligent Tool Selection
+The agent automatically selects the best tools based on your query:
+- Financial data → Yahoo Finance or Tiingo
+- Current events → Brave Search news
+- Research → Brave Search web
+- Visual content → Brave Search images/videos
+- Quick overviews → Brave Search AI summarizer
+
+### Multi-Source Analysis
+You can request comparisons and analysis from multiple sources:
+- "Compare Apple stock data from Yahoo Finance and Tiingo"
+- "Get Tesla news from both financial sources and web search"
+- "Show me market analysis with supporting web research"
+
+### Specialized Queries
+- **Time-sensitive**: "What happened in the last hour in tech stocks?"
+- **Visual research**: "Show me charts and images about renewable energy"
+- **Educational**: "Find tutorial videos about Python machine learning"
+- **Comprehensive**: "Full analysis of Microsoft including fundamentals and recent news"
 
 ## Next Steps
 
-This foundation can be extended with:
-- Portfolio analysis tools
-- Technical analysis indicators
-- Options data integration
-- Economic indicators
-- Custom financial calculations
-- Real-time websocket feeds
-- Advanced charting and visualization
+This comprehensive system can be extended with:
+- **Additional data sources**: Economic indicators, options data
+- **Real-time features**: WebSocket feeds, live market data
+- **Advanced analytics**: Technical indicators, portfolio analysis
+- **Visualization**: Charts, graphs, and interactive dashboards
+- **Custom tools**: Specialized financial calculations and models
 
-For detailed Tiingo setup instructions, see: [SETUP_TIINGO.md](SETUP_TIINGO.md)
+For detailed setup instructions:
+- Tiingo: See [SETUP_TIINGO.md](SETUP_TIINGO.md)
+- Brave Search: Visit [https://api.search.brave.com/](https://api.search.brave.com/)
+
+---
+
+🚀 **Ready to use!** Your comprehensive AI assistant combines the power of financial data with real-time web search capabilities.
