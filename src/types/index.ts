@@ -33,11 +33,21 @@ export interface Trade {
 }
 
 export interface Position {
+  id: string;
+  portfolioId: string;
   symbol: string;
+  name: string;
+  type: 'stock' | 'etf' | 'crypto' | 'bond' | 'other';
   quantity: number;
-  averagePrice: number;
+  openPrice: number;
   currentPrice: number;
+  openDate: Date;
+  closeDate?: Date;
+  closePrice?: number;
+  status: 'open' | 'closed';
   totalValue: number;
   gainLoss: number;
   gainLossPercent: number;
+  createdAt: Date;
+  updatedAt: Date;
 }
