@@ -56,3 +56,31 @@ export interface Position {
   createdAt: Date;
   updatedAt: Date;
 }
+
+export interface SuggestedTrade {
+  id: string;
+  portfolioId: string;
+  userId: string;
+  symbol: string;
+  name: string;
+  type: 'stock' | 'etf' | 'crypto' | 'bond' | 'other';
+  action: 'buy' | 'sell';
+  quantity: number;
+  estimatedPrice: number;
+  priority: 'low' | 'medium' | 'high';
+  rationale: string;
+  notes?: string;
+  status: 'pending' | 'converted' | 'dismissed';
+  createdAt: Date;
+  updatedAt: Date;
+  convertedToTradeId?: string;
+  dismissedReason?: string;
+  dismissedAt?: Date;
+}
+
+export interface PortfolioRecommendation {
+  ticker_symbol: string;
+  allocation_percent: number;
+  rationale: string;
+  notes?: string;
+}

@@ -4,7 +4,10 @@ from flask import Flask, jsonify
 from stock_service import StockPriceService
 from auth_utils import AuthUtils, AuthError
 from advisory_service import AdvisoryService, dict_to_position, dict_to_trade, advice_to_dict
+from portfolio_service import PortfolioService
 from google.cloud import firestore
+from datetime import datetime
+import os
 
 
 @https_fn.on_request()
@@ -341,5 +344,542 @@ def portfolio_advisory(req):
         response = {
             "error": "Internal Server Error",
             "message": f"Failed to generate portfolio advice: {str(e)}"
+        }
+        return (json.dumps(response), 500, headers)
+
+
+@https_fn.on_request()
+def construct_portfolio(req):
+    """
+    Firebase function for AI-powered portfolio construction.
+    This provides a direct endpoint: /construct_portfolio
+    
+    Expects POST request with JSON body: {
+        "portfolio_goal": "I want to invest $10,000 with medium risk for 10 years...",
+        "portfolio_id": "portfolio_123",  // Optional: if provided, creates suggested trades
+        "user_id": "user_456"             // Required if portfolio_id provided
+    }
+    
+    Returns JSON portfolio recommendation with allocations and rationale.
+    If portfolio_id provided, also creates suggested trades in Firestore.
+    """
+    # Handle preflight CORS requests
+    if req.method == 'OPTIONS':
+        headers = {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'POST, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+            'Access-Control-Max-Age': '3600'
+        }
+        return ('', 204, headers)
+    
+    # Set CORS headers
+    headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+    }
+    
+    try:
+        # Validate request method
+        if req.method != 'POST':
+            response = {
+                "error": "Method Not Allowed",
+                "message": "Only POST requests are supported"
+            }
+            return (json.dumps(response), 405, headers)
+        
+        # Parse request body
+        try:
+            request_data = req.get_json()
+            if not request_data:
+                raise ValueError("Request body must be valid JSON")
+        except Exception as e:
+            response = {
+                "error": "Bad Request",
+                "message": f"Invalid JSON in request body: {str(e)}"
+            }
+            return (json.dumps(response), 400, headers)
+        
+        # Validate required fields
+        portfolio_goal = request_data.get('portfolio_goal')
+        if not portfolio_goal:
+            response = {
+                "error": "Bad Request",
+                "message": "portfolio_goal is required in request body"
+            }
+            return (json.dumps(response), 400, headers)
+        
+        if not isinstance(portfolio_goal, str) or len(portfolio_goal.strip()) == 0:
+            response = {
+                "error": "Bad Request",
+                "message": "portfolio_goal must be a non-empty string"
+            }
+            return (json.dumps(response), 400, headers)
+        
+        # Optional fields for creating suggested trades
+        portfolio_id = request_data.get('portfolio_id')
+        user_id = request_data.get('user_id')
+        
+        # If portfolio_id provided, user_id is required
+        if portfolio_id and not user_id:
+            response = {
+                "error": "Bad Request",
+                "message": "user_id is required when portfolio_id is provided"
+            }
+            return (json.dumps(response), 400, headers)
+        
+        # Initialize portfolio service
+        try:
+            portfolio_service = PortfolioService()
+        except ValueError as e:
+            response = {
+                "error": "Service Configuration Error",
+                "message": f"Portfolio service initialization failed: {str(e)}"
+            }
+            return (json.dumps(response), 500, headers)
+        
+        # Construct portfolio
+        try:
+            if portfolio_id and user_id:
+                # Create portfolio with suggested trades
+                portfolio_recommendation = portfolio_service.construct_portfolio_with_trades(
+                    portfolio_goal.strip(), portfolio_id, user_id
+                )
+            else:
+                # Just create portfolio recommendation without suggested trades
+                portfolio_recommendation = portfolio_service.construct_portfolio(portfolio_goal.strip())
+            
+            # Add metadata about the service
+            tools_info = portfolio_service.get_available_tools_info()
+            portfolio_recommendation['service_info'] = {
+                'tools_used': tools_info['total_tools'],
+                'api_keys_available': tools_info['api_keys_status'],
+                'processing_timestamp': datetime.now().isoformat()
+            }
+            
+            return (json.dumps(portfolio_recommendation), 200, headers)
+            
+        except ValueError as e:
+            response = {
+                "error": "Portfolio Construction Failed",
+                "message": f"Failed to parse AI response: {str(e)}"
+            }
+            return (json.dumps(response), 502, headers)
+            
+        except RuntimeError as e:
+            response = {
+                "error": "Portfolio Construction Failed", 
+                "message": f"AI portfolio construction error: {str(e)}"
+            }
+            return (json.dumps(response), 502, headers)
+    
+    except Exception as e:
+        response = {
+            "error": "Internal Server Error",
+            "message": f"Failed to construct portfolio: {str(e)}"
+        }
+        return (json.dumps(response), 500, headers)
+
+
+@https_fn.on_request()
+def portfolio_tools_status(req):
+    """
+    Firebase function to check portfolio service tools and API key status.
+    This provides a direct endpoint: /portfolio_tools_status
+    
+    Returns information about available tools and API key configuration.
+    """
+    # Handle preflight CORS requests
+    if req.method == 'OPTIONS':
+        headers = {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+            'Access-Control-Max-Age': '3600'
+        }
+        return ('', 204, headers)
+    
+    # Set CORS headers
+    headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+    }
+    
+    try:
+        # Initialize portfolio service to check status
+        try:
+            portfolio_service = PortfolioService()
+            tools_info = portfolio_service.get_available_tools_info()
+            
+            response = {
+                "status": "OK",
+                "message": "Portfolio service is available",
+                "tools_info": tools_info,
+                "timestamp": datetime.now().isoformat()
+            }
+            return (json.dumps(response), 200, headers)
+            
+        except ValueError as e:
+            response = {
+                "status": "Configuration Error",
+                "message": str(e),
+                "tools_info": {
+                    "total_tools": 0,
+                    "api_keys_status": {
+                        "openai": False,
+                        "tiingo": bool(os.getenv("TIINGO_API_KEY")),
+                        "brave_search": bool(os.getenv("BRAVE_API_KEY"))
+                    },
+                    "available_tools": []
+                },
+                "timestamp": datetime.now().isoformat()
+            }
+            return (json.dumps(response), 500, headers)
+    
+    except Exception as e:
+        response = {
+            "status": "Error",
+            "message": f"Failed to check portfolio service status: {str(e)}",
+            "timestamp": datetime.now().isoformat()
+        }
+        return (json.dumps(response), 500, headers)
+
+
+@https_fn.on_request()
+def get_suggested_trades(req):
+    """
+    Firebase function to get suggested trades for a portfolio.
+    This provides a direct endpoint: /get_suggested_trades
+    
+    Expects GET request with query parameters:
+    - portfolio_id: ID of the portfolio
+    - user_id: ID of the user (for authorization)
+    
+    Returns list of suggested trades for the portfolio.
+    """
+    # Handle preflight CORS requests
+    if req.method == 'OPTIONS':
+        headers = {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+            'Access-Control-Max-Age': '3600'
+        }
+        return ('', 204, headers)
+    
+    # Set CORS headers
+    headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+    }
+    
+    try:
+        # Validate request method
+        if req.method != 'GET':
+            response = {
+                "error": "Method Not Allowed",
+                "message": "Only GET requests are supported"
+            }
+            return (json.dumps(response), 405, headers)
+        
+        # Get query parameters
+        portfolio_id = req.args.get('portfolio_id')
+        user_id = req.args.get('user_id')
+        status = req.args.get('status')  # Optional status filter
+        
+        if not portfolio_id:
+            response = {
+                "error": "Bad Request",
+                "message": "portfolio_id query parameter is required"
+            }
+            return (json.dumps(response), 400, headers)
+        
+        if not user_id:
+            response = {
+                "error": "Bad Request",
+                "message": "user_id query parameter is required"
+            }
+            return (json.dumps(response), 400, headers)
+        
+        # Initialize portfolio service
+        try:
+            portfolio_service = PortfolioService()
+        except ValueError as e:
+            response = {
+                "error": "Service Configuration Error",
+                "message": f"Portfolio service initialization failed: {str(e)}"
+            }
+            return (json.dumps(response), 500, headers)
+        
+        # Get suggested trades
+        try:
+            suggested_trades = portfolio_service.get_suggested_trades(portfolio_id, user_id, status)
+            
+            response = {
+                "suggested_trades": suggested_trades,
+                "count": len(suggested_trades),
+                "portfolio_id": portfolio_id,
+                "timestamp": datetime.now().isoformat()
+            }
+            
+            return (json.dumps(response), 200, headers)
+            
+        except RuntimeError as e:
+            response = {
+                "error": "Failed to Get Suggested Trades",
+                "message": str(e)
+            }
+            return (json.dumps(response), 500, headers)
+    
+    except Exception as e:
+        response = {
+            "error": "Internal Server Error",
+            "message": f"Failed to get suggested trades: {str(e)}"
+        }
+        return (json.dumps(response), 500, headers)
+
+
+@https_fn.on_request()
+def convert_suggested_trade(req):
+    """
+    Firebase function to convert a suggested trade to an actual trade.
+    This provides a direct endpoint: /convert_suggested_trade
+    
+    Expects POST request with JSON body: {
+        "suggested_trade_id": "trade_123",
+        "user_id": "user_456",
+        "trade_data": {           // Optional: override trade details
+            "quantity": 10,
+            "price": 195.50,
+            "fees": 9.99,
+            "notes": "Custom execution notes"
+        }
+    }
+    
+    Returns the ID of the created actual trade.
+    """
+    # Handle preflight CORS requests
+    if req.method == 'OPTIONS':
+        headers = {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'POST, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+            'Access-Control-Max-Age': '3600'
+        }
+        return ('', 204, headers)
+    
+    # Set CORS headers
+    headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+    }
+    
+    try:
+        # Validate request method
+        if req.method != 'POST':
+            response = {
+                "error": "Method Not Allowed",
+                "message": "Only POST requests are supported"
+            }
+            return (json.dumps(response), 405, headers)
+        
+        # Parse request body
+        try:
+            request_data = req.get_json()
+            if not request_data:
+                raise ValueError("Request body must be valid JSON")
+        except Exception as e:
+            response = {
+                "error": "Bad Request",
+                "message": f"Invalid JSON in request body: {str(e)}"
+            }
+            return (json.dumps(response), 400, headers)
+        
+        # Validate required fields
+        suggested_trade_id = request_data.get('suggested_trade_id')
+        user_id = request_data.get('user_id')
+        
+        if not suggested_trade_id:
+            response = {
+                "error": "Bad Request",
+                "message": "suggested_trade_id is required in request body"
+            }
+            return (json.dumps(response), 400, headers)
+        
+        if not user_id:
+            response = {
+                "error": "Bad Request",
+                "message": "user_id is required in request body"
+            }
+            return (json.dumps(response), 400, headers)
+        
+        # Optional trade data overrides
+        trade_data = request_data.get('trade_data')
+        
+        # Initialize portfolio service
+        try:
+            portfolio_service = PortfolioService()
+        except ValueError as e:
+            response = {
+                "error": "Service Configuration Error",
+                "message": f"Portfolio service initialization failed: {str(e)}"
+            }
+            return (json.dumps(response), 500, headers)
+        
+        # Convert suggested trade to actual trade
+        try:
+            actual_trade_id = portfolio_service.convert_suggested_trade_to_actual(
+                suggested_trade_id, user_id, trade_data
+            )
+            
+            response = {
+                "message": "Suggested trade successfully converted to actual trade",
+                "actual_trade_id": actual_trade_id,
+                "suggested_trade_id": suggested_trade_id,
+                "timestamp": datetime.now().isoformat()
+            }
+            
+            return (json.dumps(response), 200, headers)
+            
+        except ValueError as e:
+            response = {
+                "error": "Bad Request",
+                "message": str(e)
+            }
+            return (json.dumps(response), 400, headers)
+            
+        except RuntimeError as e:
+            response = {
+                "error": "Trade Conversion Failed",
+                "message": str(e)
+            }
+            return (json.dumps(response), 500, headers)
+    
+    except Exception as e:
+        response = {
+            "error": "Internal Server Error",
+            "message": f"Failed to convert suggested trade: {str(e)}"
+        }
+        return (json.dumps(response), 500, headers)
+
+
+@https_fn.on_request()
+def dismiss_suggested_trade(req):
+    """
+    Firebase function to dismiss a suggested trade.
+    This provides a direct endpoint: /dismiss_suggested_trade
+    
+    Expects POST request with JSON body: {
+        "suggested_trade_id": "trade_123",
+        "user_id": "user_456",
+        "reason": "Optional reason for dismissal"
+    }
+    
+    Returns success status.
+    """
+    # Handle preflight CORS requests
+    if req.method == 'OPTIONS':
+        headers = {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'POST, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+            'Access-Control-Max-Age': '3600'
+        }
+        return ('', 204, headers)
+    
+    # Set CORS headers
+    headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+    }
+    
+    try:
+        # Validate request method
+        if req.method != 'POST':
+            response = {
+                "error": "Method Not Allowed",
+                "message": "Only POST requests are supported"
+            }
+            return (json.dumps(response), 405, headers)
+        
+        # Parse request body
+        try:
+            request_data = req.get_json()
+            if not request_data:
+                raise ValueError("Request body must be valid JSON")
+        except Exception as e:
+            response = {
+                "error": "Bad Request",
+                "message": f"Invalid JSON in request body: {str(e)}"
+            }
+            return (json.dumps(response), 400, headers)
+        
+        # Validate required fields
+        suggested_trade_id = request_data.get('suggested_trade_id')
+        user_id = request_data.get('user_id')
+        
+        if not suggested_trade_id:
+            response = {
+                "error": "Bad Request",
+                "message": "suggested_trade_id is required in request body"
+            }
+            return (json.dumps(response), 400, headers)
+        
+        if not user_id:
+            response = {
+                "error": "Bad Request",
+                "message": "user_id is required in request body"
+            }
+            return (json.dumps(response), 400, headers)
+        
+        # Optional reason for dismissal
+        reason = request_data.get('reason')
+        
+        # Initialize portfolio service
+        try:
+            portfolio_service = PortfolioService()
+        except ValueError as e:
+            response = {
+                "error": "Service Configuration Error",
+                "message": f"Portfolio service initialization failed: {str(e)}"
+            }
+            return (json.dumps(response), 500, headers)
+        
+        # Dismiss the suggested trade
+        try:
+            success = portfolio_service.dismiss_suggested_trade(suggested_trade_id, user_id, reason)
+            
+            response = {
+                "message": "Suggested trade successfully dismissed",
+                "suggested_trade_id": suggested_trade_id,
+                "success": success,
+                "timestamp": datetime.now().isoformat()
+            }
+            
+            return (json.dumps(response), 200, headers)
+            
+        except ValueError as e:
+            response = {
+                "error": "Bad Request",
+                "message": str(e)
+            }
+            return (json.dumps(response), 400, headers)
+            
+        except RuntimeError as e:
+            response = {
+                "error": "Dismissal Failed",
+                "message": str(e)
+            }
+            return (json.dumps(response), 500, headers)
+    
+    except Exception as e:
+        response = {
+            "error": "Internal Server Error",
+            "message": f"Failed to dismiss suggested trade: {str(e)}"
         }
         return (json.dumps(response), 500, headers)

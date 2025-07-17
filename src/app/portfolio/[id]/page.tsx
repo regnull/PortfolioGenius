@@ -9,6 +9,7 @@ import { formatCurrency, formatPercentage } from '@/lib/currency';
 import { useStockPrices, PositionWithCurrentPrice } from '@/hooks/useStockPrices';
 import AddPositionForm from '@/components/portfolio/AddPositionForm';
 import ClosePositionForm from '@/components/portfolio/ClosePositionForm';
+import SuggestedTrades from '@/components/portfolio/SuggestedTrades';
 import Link from 'next/link';
 
 export default function PortfolioPage() {
@@ -410,6 +411,17 @@ export default function PortfolioPage() {
           </div>
           
           {renderPositionsTable(positionsWithPrices.filter(p => p.status === 'open'), 'open')}
+        </div>
+
+        {/* AI Suggested Trades Section */}
+        <div className="mb-8">
+          <SuggestedTrades 
+            portfolio={portfolio} 
+            onTradeConverted={() => {
+              // Refresh portfolio data when a trade is converted
+              refreshPortfolioData();
+            }}
+          />
         </div>
 
         {/* Closed Positions Section */}

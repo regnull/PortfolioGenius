@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { createPortfolio } from '@/lib/firestore';
+import { Portfolio } from '@/types';
 
 interface CreatePortfolioFormProps {
   onSuccess?: (portfolioId: string) => void;
@@ -27,10 +28,10 @@ export default function CreatePortfolioForm({ onSuccess, onCancel }: CreatePortf
     setError('');
 
     try {
-      const portfolioId = await createPortfolio({
+      // Build portfolio data object, only including description if it has a value
+      const portfolioData: Omit<Portfolio, 'id'> = {
         userId: user.uid,
         name,
-        description: description || undefined,
         goal: goal.trim(),
         isPublic,
         isBotPortfolio: isBotPortfolio || false,
@@ -40,7 +41,14 @@ export default function CreatePortfolioForm({ onSuccess, onCancel }: CreatePortf
         totalGainLossPercent: 0,
         createdAt: new Date(),
         updatedAt: new Date()
-      });
+      };
+
+      // Only add description if it's not empty
+      if (description.trim()) {
+        portfolioData.description = description.trim();
+      }
+
+      const portfolioId = await createPortfolio(portfolioData);
 
       setName('');
       setDescription('');
