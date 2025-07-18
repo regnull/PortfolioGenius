@@ -25,6 +25,8 @@ The following Firebase functions are deployed:
 | `convert_suggested_trade` | `/convert_suggested_trade` | `POST` |
 | `dismiss_suggested_trade` | `/dismiss_suggested_trade` | `POST` |
 | `lookup_symbol` | `/lookup_symbol` | `POST` |
+| `get_portfolio_advice` | `/get_portfolio_advice` | `POST` |
+| `request_portfolio_performance` | `/request_portfolio_performance` | `POST` |
 
 All endpoints expect a Firebase Auth bearer token and return JSON responses.
 

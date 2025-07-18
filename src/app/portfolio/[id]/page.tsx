@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { getPortfolio, getPositions, getTrades, deletePosition, deleteTrade, recalculateCashBalance } from '@/lib/firestore';
+import { getPortfolio, getPositions, getTrades, deletePosition, deleteTrade, recalculateCashBalance, subscribePortfolio } from '@/lib/firestore';
 import { Portfolio, Position, Trade } from '@/types';
 import { formatCurrency, formatPercentage } from '@/lib/currency';
 import { useStockPrices, PositionWithCurrentPrice } from '@/hooks/useStockPrices';
@@ -95,6 +95,16 @@ export default function PortfolioPage() {
 
     fetchPortfolio();
   }, [user, params.id]);
+
+  useEffect(() => {
+    if (!params.id) return;
+    const unsubscribe = subscribePortfolio(params.id as string, (updated) => {
+      if (updated) {
+        setPortfolio(updated);
+      }
+    });
+    return () => unsubscribe();
+  }, [params.id]);
 
   const handleDeletePosition = async (positionId: string) => {
     if (!confirm('Are you sure you want to delete this position?')) return;
@@ -412,6 +422,12 @@ export default function PortfolioPage() {
                 <div className="mt-3 p-3 bg-blue-50 rounded-lg">
                   <h4 className="text-sm font-medium text-blue-900 mb-1">Investment Goal</h4>
                   <p className="text-sm text-blue-800">{portfolio.goal}</p>
+                </div>
+              )}
+              {portfolio.advice && (
+                <div className="mt-3 p-3 bg-green-50 rounded-lg">
+                  <h4 className="text-sm font-medium text-green-900 mb-1">Portfolio Advice</h4>
+                  <p className="text-sm text-green-800 whitespace-pre-line">{portfolio.advice}</p>
                 </div>
               )}
             </div>
