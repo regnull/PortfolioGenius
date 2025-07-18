@@ -270,7 +270,10 @@ export default function PortfolioPage() {
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {trades.map((trade) => {
-              const tradeDate = (trade.date as any).toDate ? (trade.date as any).toDate() : new Date(trade.date as any);
+              const tradeDate = trade.date instanceof Date ? trade.date : 
+                               (trade.date && typeof trade.date === 'object' && 'toDate' in trade.date) ? 
+                               (trade.date as { toDate: () => Date }).toDate() : 
+                               new Date(trade.date);
               return (
                 <tr key={trade.id} className="hover:bg-gray-50">
                   <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{tradeDate.toLocaleDateString()}</td>
@@ -344,13 +347,17 @@ export default function PortfolioPage() {
 
   // Calculate current portfolio metrics
   const calculateCurrentPortfolioValue = () => {
-    return positionsWithPrices.reduce((sum, position) => {
+    const positionsValue = positionsWithPrices.reduce((sum, position) => {
       if (position.status === 'open') {
         return sum + position.currentTotalValue;
       } else {
         return sum + position.totalValue;
       }
     }, 0);
+    
+    // Add cash balance to total portfolio value
+    const cashBalance = portfolio?.cashBalance || 0;
+    return positionsValue + cashBalance;
   };
 
   const calculateCurrentPortfolioGainLoss = () => {
