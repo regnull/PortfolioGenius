@@ -31,7 +31,7 @@ export default function AddPositionForm({ portfolioId, onSuccess, onCancel, sugg
   const [error, setError] = useState('');
 
   const handleSymbolBlur = async () => {
-    if (!symbol || name) return;
+    if (!symbol) return;
     try {
       const result = await tickerLookupClient.lookupSymbol(symbol);
       if (result) {

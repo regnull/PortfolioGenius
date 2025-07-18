@@ -23,6 +23,7 @@ const convertFirestoreToPortfolio = (id: string, data: Record<string, unknown>):
   return {
     id,
     ...data,
+    initialCashBalance: data.initialCashBalance as number,
     createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date(data.createdAt as string),
     updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate() : new Date(data.updatedAt as string),
   } as Portfolio;

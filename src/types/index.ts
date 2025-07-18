@@ -16,6 +16,7 @@ export interface Portfolio {
   isPublic: boolean;
   isBotPortfolio?: boolean;
   cashBalance: number;
+  initialCashBalance: number;
   createdAt: Date;
   updatedAt: Date;
   totalValue: number;
