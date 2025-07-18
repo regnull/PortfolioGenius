@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { getPortfolio, getPositions, deletePosition, recalculateCashBalance } from '@/lib/firestore';
-import { Portfolio, Position } from '@/types';
+import { getPortfolio, getPositions, getTrades, deletePosition, deleteTrade, recalculateCashBalance } from '@/lib/firestore';
+import { Portfolio, Position, Trade } from '@/types';
 import { formatCurrency, formatPercentage } from '@/lib/currency';
 import { useStockPrices, PositionWithCurrentPrice } from '@/hooks/useStockPrices';
 import AddPositionForm from '@/components/portfolio/AddPositionForm';
@@ -17,6 +17,7 @@ export default function PortfolioPage() {
   const { user } = useAuth();
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
   const [positions, setPositions] = useState<Position[]>([]);
+  const [trades, setTrades] = useState<Trade[]>([]);
   const { positions: positionsWithPrices, loading: pricesLoading, error: pricesError, lastUpdate, refreshPrices } = useStockPrices(positions);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -34,18 +35,30 @@ export default function PortfolioPage() {
     }
   };
 
+  const fetchTrades = async () => {
+    if (!params.id) return;
+    try {
+      const tradeData = await getTrades(params.id as string);
+      setTrades(tradeData);
+    } catch (err) {
+      console.error('Failed to fetch trades:', err);
+    }
+  };
+
   const refreshPortfolioData = async () => {
     if (!params.id) return;
     try {
-      const [portfolioData, positionData] = await Promise.all([
+      const [portfolioData, positionData, tradeData] = await Promise.all([
         getPortfolio(params.id as string),
-        getPositions(params.id as string)
+        getPositions(params.id as string),
+        getTrades(params.id as string)
       ]);
       
       if (portfolioData) {
         setPortfolio(portfolioData);
       }
       setPositions(positionData);
+      setTrades(tradeData);
     } catch (err) {
       console.error('Failed to refresh portfolio data:', err);
     }
@@ -71,8 +84,8 @@ export default function PortfolioPage() {
 
         setPortfolio(portfolioData);
         
-        // Fetch positions for this portfolio
-        await fetchPositions();
+        // Fetch positions and trades for this portfolio
+        await Promise.all([fetchPositions(), fetchTrades()]);
       } catch (err) {
         setError('Failed to load portfolio');
       } finally {
@@ -92,6 +105,18 @@ export default function PortfolioPage() {
       refreshPortfolioData();
     } catch (err) {
       alert('Failed to delete position');
+    }
+  };
+
+  const handleDeleteTrade = async (tradeId: string) => {
+    if (!confirm('Are you sure you want to delete this trade?')) return;
+
+    try {
+      await deleteTrade(params.id as string, tradeId);
+      // Refresh portfolio data after deleting trade
+      refreshPortfolioData();
+    } catch (err) {
+      alert('Failed to delete trade');
     }
   };
 
@@ -216,6 +241,55 @@ export default function PortfolioPage() {
                 </td>
               </tr>
             ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
+  const renderTradesTable = () => {
+    if (trades.length === 0) {
+      return (
+        <div className="text-center py-12 text-gray-500">No trades</div>
+      );
+    }
+
+    return (
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Date</th>
+              <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Symbol</th>
+              <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Type</th>
+              <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+              <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Price</th>
+              <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Total</th>
+              <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {trades.map((trade) => {
+              const tradeDate = (trade.date as any).toDate ? (trade.date as any).toDate() : new Date(trade.date as any);
+              return (
+                <tr key={trade.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{tradeDate.toLocaleDateString()}</td>
+                  <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{trade.symbol}</td>
+                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">{trade.type}</td>
+                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{trade.quantity}</td>
+                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency(trade.price)}</td>
+                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency(trade.price * trade.quantity)}</td>
+                  <td className="px-4 py-4 whitespace-nowrap text-sm">
+                    <button
+                      onClick={() => handleDeleteTrade(trade.id)}
+                      className="text-red-600 hover:text-red-900 font-medium"
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -499,7 +573,15 @@ export default function PortfolioPage() {
             </div>
           )}
           
-          {renderPositionsTable(positionsWithPrices.filter(p => p.status === 'closed'), 'closed')}
+        {renderPositionsTable(positionsWithPrices.filter(p => p.status === 'closed'), 'closed')}
+        </div>
+
+        {/* Trades Section */}
+        <div className="bg-white rounded-lg shadow-md p-6 mt-8">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-semibold text-gray-900">Trades</h2>
+          </div>
+          {renderTradesTable()}
         </div>
 
         {/* Portfolio Info */}
