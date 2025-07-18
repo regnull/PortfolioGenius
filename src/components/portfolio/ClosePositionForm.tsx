@@ -36,7 +36,7 @@ export default function ClosePositionForm({ position, onSuccess, onCancel }: Clo
     }
     
     if (quantityNum <= 0 || quantityNum > position.quantity) {
-      setError(`Quantity must be between 1 and ${position.quantity}`);
+      setError(`Quantity must be greater than 0 and no more than ${position.quantity}`);
       return;
     }
 
@@ -108,9 +108,9 @@ export default function ClosePositionForm({ position, onSuccess, onCancel }: Clo
                   value={quantity}
                   onChange={(e) => setQuantity(e.target.value)}
                   required
-                  min="1"
+                  min="0.00000001"
                   max={position.quantity}
-                  step="0.000001"
+                  step="0.00000001"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-gray-900"
                   placeholder={position.quantity.toString()}
                 />
