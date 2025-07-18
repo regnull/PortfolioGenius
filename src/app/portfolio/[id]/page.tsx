@@ -120,6 +120,10 @@ export default function PortfolioPage() {
       );
     }
 
+    const totalOpenValue = positionsWithPrices
+      .filter(p => p.status === 'open')
+      .reduce((sum, p) => sum + p.currentTotalValue, 0) + (portfolio?.cashBalance || 0);
+
     return (
       <div className="overflow-x-auto">
         <table className="w-full">
@@ -137,6 +141,9 @@ export default function PortfolioPage() {
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Close Price</th>
               )}
               <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Total Value</th>
+              {type === 'open' && (
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Portfolio %</th>
+              )}
               <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Gain/Loss</th>
               <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Actions</th>
             </tr>
@@ -179,6 +186,11 @@ export default function PortfolioPage() {
                 <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                   {formatCurrency(type === 'open' ? position.currentTotalValue : position.totalValue)}
                 </td>
+                {type === 'open' && (
+                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {formatPercentage(totalOpenValue > 0 ? (position.currentTotalValue / totalOpenValue) * 100 : 0)}
+                  </td>
+                )}
                 <td className="px-4 py-4 whitespace-nowrap text-sm">
                   <span className={`font-medium ${
                     (type === 'open' ? position.currentGainLoss : position.gainLoss) >= 0 ? 'text-green-600' : 'text-red-600'
