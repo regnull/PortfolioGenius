@@ -84,9 +84,9 @@ export default function PortfolioPage() {
 
   const handleDeletePosition = async (positionId: string) => {
     if (!confirm('Are you sure you want to delete this position?')) return;
-    
+
     try {
-      await deletePosition(positionId);
+      await deletePosition(params.id as string, positionId);
       // Refresh portfolio data after deleting position
       refreshPortfolioData();
     } catch (err) {

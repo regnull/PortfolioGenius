@@ -49,7 +49,7 @@ export default function ClosePositionForm({ position, onSuccess, onCancel }: Clo
     setError('');
 
     try {
-      await closePosition(position.id, priceNum, quantityNum, feesNum);
+      await closePosition(position.portfolioId, position.id, priceNum, quantityNum, feesNum);
       
       if (onSuccess) {
         onSuccess();

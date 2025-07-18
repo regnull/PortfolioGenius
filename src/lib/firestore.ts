@@ -5,7 +5,8 @@ import {
   getDocs, 
   addDoc, 
   updateDoc, 
-  deleteDoc, 
+  deleteDoc,
+  setDoc,
   query, 
   where, 
   orderBy, 
@@ -185,11 +186,14 @@ export const deleteTrade = async (portfolioId: string, tradeId: string) => {
 
 export const addPosition = async (positionData: Omit<Position, 'id'>) => {
   try {
-    const docRef = await addDoc(collection(db, 'positions'), {
-      ...positionData,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    });
+    const docRef = await addDoc(
+      collection(db, 'portfolios', positionData.portfolioId, 'positions'),
+      {
+        ...positionData,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      }
+    );
     
     // Create BuyToOpen trade record
     await addTrade(positionData.portfolioId, {
@@ -230,8 +234,7 @@ export const addPosition = async (positionData: Omit<Position, 'id'>) => {
 export const getPositions = async (portfolioId: string): Promise<Position[]> => {
   try {
     const q = query(
-      collection(db, 'positions'),
-      where('portfolioId', '==', portfolioId),
+      collection(db, 'portfolios', portfolioId, 'positions'),
       orderBy('createdAt', 'desc')
     );
     const querySnapshot = await getDocs(q);
@@ -245,9 +248,13 @@ export const getPositions = async (portfolioId: string): Promise<Position[]> => 
   }
 };
 
-export const updatePosition = async (positionId: string, updates: Partial<Position>) => {
+export const updatePosition = async (
+  portfolioId: string,
+  positionId: string,
+  updates: Partial<Position>
+) => {
   try {
-    await updateDoc(doc(db, 'positions', positionId), {
+    await updateDoc(doc(db, 'portfolios', portfolioId, 'positions', positionId), {
       ...updates,
       updatedAt: serverTimestamp()
     });
@@ -257,9 +264,15 @@ export const updatePosition = async (positionId: string, updates: Partial<Positi
   }
 };
 
-export const closePosition = async (positionId: string, closePrice: number, quantityToClose?: number, closeFees?: number) => {
+export const closePosition = async (
+  portfolioId: string,
+  positionId: string,
+  closePrice: number,
+  quantityToClose?: number,
+  closeFees?: number
+) => {
   try {
-    const positionDoc = await getDoc(doc(db, 'positions', positionId));
+    const positionDoc = await getDoc(doc(db, 'portfolios', portfolioId, 'positions', positionId));
     if (!positionDoc.exists()) {
       throw new Error('Position not found');
     }
@@ -280,7 +293,7 @@ export const closePosition = async (positionId: string, closePrice: number, quan
     
     if (closeQuantity === position.quantity) {
       // Full close - update the existing position
-      await updateDoc(doc(db, 'positions', positionId), {
+      await updateDoc(doc(db, 'portfolios', portfolioId, 'positions', positionId), {
         status: 'closed',
         closePrice,
         closeDate: serverTimestamp(),
@@ -321,12 +334,15 @@ export const closePosition = async (positionId: string, closePrice: number, quan
       const { id: _, ...positionDataWithoutId } = closedPositionData;
       
       // Create new closed position
-      const newClosedPositionDoc = await addDoc(collection(db, 'positions'), {
-        ...positionDataWithoutId,
-        closeDate: serverTimestamp(),
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
+      const newClosedPositionDoc = await addDoc(
+        collection(db, 'portfolios', portfolioId, 'positions'),
+        {
+          ...positionDataWithoutId,
+          closeDate: serverTimestamp(),
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        }
+      );
       
       // Create SellToClose trade record for partial close
       await addTrade(position.portfolioId, {
@@ -343,7 +359,7 @@ export const closePosition = async (positionId: string, closePrice: number, quan
       const remainingQuantity = position.quantity - closeQuantity;
       const remainingTotalValue = position.openPrice * remainingQuantity;
       
-      await updateDoc(doc(db, 'positions', positionId), {
+      await updateDoc(doc(db, 'portfolios', portfolioId, 'positions', positionId), {
         quantity: remainingQuantity,
         totalValue: remainingTotalValue,
         updatedAt: serverTimestamp()
@@ -365,7 +381,7 @@ export const closePosition = async (positionId: string, closePrice: number, quan
     }
 
     // Update portfolio totals after closing position
-    await updatePortfolioTotals(position.portfolioId);
+    await updatePortfolioTotals(portfolioId);
   } catch (error) {
     console.error('Error closing position:', error);
     throw error;
@@ -423,11 +439,12 @@ export const updatePortfolioTotals = async (portfolioId: string) => {
   }
 };
 
-export const getClosedPositions = async (portfolioId: string): Promise<Position[]> => {
+export const getClosedPositions = async (
+  portfolioId: string
+): Promise<Position[]> => {
   try {
     const q = query(
-      collection(db, 'positions'),
-      where('portfolioId', '==', portfolioId),
+      collection(db, 'portfolios', portfolioId, 'positions'),
       where('status', '==', 'closed'),
       orderBy('closeDate', 'desc')
     );
@@ -442,11 +459,12 @@ export const getClosedPositions = async (portfolioId: string): Promise<Position[
   }
 };
 
-export const getOpenPositions = async (portfolioId: string): Promise<Position[]> => {
+export const getOpenPositions = async (
+  portfolioId: string
+): Promise<Position[]> => {
   try {
     const q = query(
-      collection(db, 'positions'),
-      where('portfolioId', '==', portfolioId),
+      collection(db, 'portfolios', portfolioId, 'positions'),
       where('status', '==', 'open'),
       orderBy('createdAt', 'desc')
     );
@@ -461,10 +479,13 @@ export const getOpenPositions = async (portfolioId: string): Promise<Position[]>
   }
 };
 
-export const deletePosition = async (positionId: string) => {
+export const deletePosition = async (
+  portfolioId: string,
+  positionId: string
+) => {
   try {
     // Get the position data before deleting to access portfolioId
-    const positionDoc = await getDoc(doc(db, 'positions', positionId));
+    const positionDoc = await getDoc(doc(db, 'portfolios', portfolioId, 'positions', positionId));
     if (!positionDoc.exists()) {
       throw new Error('Position not found');
     }
@@ -484,7 +505,7 @@ export const deletePosition = async (positionId: string) => {
       });
     }
 
-    await deleteDoc(doc(db, 'positions', positionId));
+    await deleteDoc(doc(db, 'portfolios', portfolioId, 'positions', positionId));
 
     // Update portfolio totals after deleting position
     await updatePortfolioTotals(position.portfolioId);
@@ -495,6 +516,7 @@ export const deletePosition = async (positionId: string) => {
 };
 
 export const updateSuggestedTradeStatus = async (
+  portfolioId: string,
   tradeId: string,
   status: 'pending' | 'converted' | 'dismissed'
 ) => {
@@ -510,7 +532,10 @@ export const updateSuggestedTradeStatus = async (
       updateData.dismissedAt = serverTimestamp();
     }
 
-    await updateDoc(doc(db, 'suggestedTrades', tradeId), updateData);
+    await updateDoc(
+      doc(db, 'portfolios', portfolioId, 'suggestedTrades', tradeId),
+      updateData
+    );
   } catch (error) {
     console.error('Error updating suggested trade status:', error);
     throw error;
@@ -525,8 +550,7 @@ export const subscribeSuggestedTrades = (
 ): Unsubscribe => {
   try {
     let q = query(
-      collection(db, 'suggestedTrades'),
-      where('portfolioId', '==', portfolioId),
+      collection(db, 'portfolios', portfolioId, 'suggestedTrades'),
       where('userId', '==', userId),
       orderBy('createdAt', 'desc')
     );
@@ -534,8 +558,7 @@ export const subscribeSuggestedTrades = (
     // Add status filter if provided
     if (status) {
       q = query(
-        collection(db, 'suggestedTrades'),
-        where('portfolioId', '==', portfolioId),
+        collection(db, 'portfolios', portfolioId, 'suggestedTrades'),
         where('userId', '==', userId),
         where('status', '==', status),
         orderBy('createdAt', 'desc')
@@ -559,6 +582,30 @@ export const subscribeSuggestedTrades = (
     });
   } catch (error) {
     console.error('Error setting up suggested trades listener:', error);
+    throw error;
+  }
+};
+
+export const migrateUserData = async (userId: string) => {
+  try {
+    const collectionsToMigrate = ['positions', 'suggestedTrades', 'trades'];
+
+    for (const colName of collectionsToMigrate) {
+      const q = query(collection(db, colName), where('userId', '==', userId));
+      const snapshot = await getDocs(q);
+
+      for (const docSnap of snapshot.docs) {
+        const data = docSnap.data();
+        const portfolioId = data.portfolioId;
+        if (!portfolioId) continue;
+
+        const destRef = doc(db, 'portfolios', portfolioId, colName, docSnap.id);
+        await setDoc(destRef, data);
+        await deleteDoc(doc(db, colName, docSnap.id));
+      }
+    }
+  } catch (error) {
+    console.error('Error migrating user data:', error);
     throw error;
   }
 };
