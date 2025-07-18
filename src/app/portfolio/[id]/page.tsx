@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { getPortfolio, getPositions, deletePosition } from '@/lib/firestore';
+import { getPortfolio, getPositions, deletePosition, recalculateCashBalance } from '@/lib/firestore';
 import { Portfolio, Position } from '@/types';
 import { formatCurrency, formatPercentage } from '@/lib/currency';
 import { useStockPrices, PositionWithCurrentPrice } from '@/hooks/useStockPrices';
@@ -22,6 +22,7 @@ export default function PortfolioPage() {
   const [error, setError] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
   const [positionToClose, setPositionToClose] = useState<Position | null>(null);
+  const [updatingCash, setUpdatingCash] = useState(false);
 
   const fetchPositions = async () => {
     if (!params.id) return;
@@ -91,6 +92,19 @@ export default function PortfolioPage() {
       refreshPortfolioData();
     } catch (err) {
       alert('Failed to delete position');
+    }
+  };
+
+  const handleRecalculateCash = async () => {
+    if (!portfolio) return;
+    setUpdatingCash(true);
+    try {
+      const newCash = await recalculateCashBalance(portfolio.id);
+      setPortfolio({ ...portfolio, cashBalance: newCash });
+    } catch (err) {
+      console.error('Failed to recalculate cash balance:', err);
+    } finally {
+      setUpdatingCash(false);
     }
   };
 
@@ -322,7 +336,16 @@ export default function PortfolioPage() {
           </div>
           
           <div className="bg-white rounded-lg shadow-md p-6">
-            <h3 className="text-sm font-medium text-gray-500 mb-2">Cash Balance</h3>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-medium text-gray-500">Cash Balance</h3>
+              <button
+                onClick={handleRecalculateCash}
+                disabled={updatingCash}
+                className="text-xs text-blue-600 hover:underline disabled:text-gray-400"
+              >
+                {updatingCash ? 'Updating...' : 'Update'}
+              </button>
+            </div>
             <p className="text-3xl font-bold text-gray-900">
               {formatCurrency(portfolio.cashBalance || 0)}
             </p>

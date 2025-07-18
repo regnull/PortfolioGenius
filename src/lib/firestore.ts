@@ -183,6 +183,43 @@ export const deleteTrade = async (portfolioId: string, tradeId: string) => {
   }
 };
 
+export const recalculateCashBalance = async (portfolioId: string) => {
+  try {
+    // Fetch portfolio to get initial cash
+    const portfolioRef = doc(db, 'portfolios', portfolioId);
+    const portfolioSnap = await getDoc(portfolioRef);
+    if (!portfolioSnap.exists()) {
+      throw new Error('Portfolio not found');
+    }
+
+    const portfolioData = portfolioSnap.data();
+    const initialCash = portfolioData.initialCashBalance || 0;
+
+    // Sum up all trades to compute cash impact
+    const trades = await getTrades(portfolioId);
+
+    let cash = initialCash;
+    trades.forEach((trade) => {
+      const total = (trade.price * trade.quantity) + (trade.fees || 0);
+      if (trade.type === 'BuyToOpen') {
+        cash -= total;
+      } else if (trade.type === 'SellToClose') {
+        cash += (trade.price * trade.quantity) - (trade.fees || 0);
+      }
+    });
+
+    await updateDoc(portfolioRef, {
+      cashBalance: cash,
+      updatedAt: serverTimestamp(),
+    });
+
+    return cash;
+  } catch (error) {
+    console.error('Error recalculating cash balance:', error);
+    throw error;
+  }
+};
+
 export const addPosition = async (positionData: Omit<Position, 'id'>) => {
   try {
     const docRef = await addDoc(collection(db, 'positions'), {
