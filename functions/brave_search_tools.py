@@ -7,6 +7,9 @@ Provides access to Brave Search API for web search, news, images, videos, and AI
 import os
 import json
 import requests
+from logging_utils import get_logger
+
+logger = get_logger()
 from datetime import datetime
 from typing import Dict, List, Any, Optional, Type
 from langchain.tools import BaseTool
@@ -496,24 +499,24 @@ def get_brave_search_tools():
 if __name__ == "__main__":
     # Test the tools
     tools = get_brave_search_tools()
-    
-    print("Testing Brave Search Tools:")
-    print("=" * 50)
-    
+
+    logger.info("Testing Brave Search Tools")
+    logger.info("=" * 50)
+
     # Test web search tool
-    print("\n1. Testing Web Search Tool:")
+    logger.info("\n1. Testing Web Search Tool:")
     web_tool = BraveWebSearchTool()
     result = web_tool._run("Python programming tutorial", count=3)
-    print(result[:500] + "..." if len(result) > 500 else result)
-    
+    logger.info(result[:500] + "..." if len(result) > 500 else result)
+
     # Test news search tool
-    print("\n2. Testing News Search Tool:")
+    logger.info("\n2. Testing News Search Tool:")
     news_tool = BraveNewsSearchTool()
     result = news_tool._run("artificial intelligence", count=3)
-    print(result[:500] + "..." if len(result) > 500 else result)
-    
+    logger.info(result[:500] + "..." if len(result) > 500 else result)
+
     # Test AI summarizer tool
-    print("\n3. Testing AI Summarizer Tool:")
+    logger.info("\n3. Testing AI Summarizer Tool:")
     summarizer_tool = BraveAISummarizerTool()
     result = summarizer_tool._run("renewable energy trends 2024", count=5)
-    print(result[:500] + "..." if len(result) > 500 else result) 
+    logger.info(result[:500] + "..." if len(result) > 500 else result)
