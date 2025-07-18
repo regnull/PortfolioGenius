@@ -253,6 +253,59 @@ class PortfolioService:
             },
             "available_tools": [tool.name for tool in self.all_tools]
         }
+
+    def generate_portfolio_advice(
+        self, portfolio_goal: str, cash_balance: float, positions: List[Dict]
+    ) -> str:
+        """Generate textual advice for a portfolio using the configured tools."""
+
+        # Build a temporary agent with a specialized prompt
+        advice_prompt = ChatPromptTemplate.from_messages(
+            [
+                (
+                    "system",
+                    "You are an experienced investment advisor. "
+                    "Use the available tools to fetch up to date stock prices and news "
+                    "before providing advice on a portfolio.",
+                ),
+                ("user", "{input}"),
+                (
+                    "assistant",
+                    "I'll research the holdings and craft a short analysis.",
+                ),
+                ("placeholder", "{agent_scratchpad}"),
+            ]
+        )
+
+        agent = create_openai_tools_agent(self.llm, self.all_tools, advice_prompt)
+        executor = AgentExecutor(agent=agent, tools=self.all_tools, verbose=False)
+
+        position_lines = []
+        for pos in positions:
+            symbol = pos.get("symbol", "").upper()
+            qty = pos.get("quantity", 0)
+            price = pos.get("currentPrice") or pos.get("current_price") or 0
+            gain = pos.get("gainLoss") or pos.get("gain_loss") or 0
+            gain_pct = (
+                pos.get("gainLossPercent")
+                or pos.get("gain_loss_percent")
+                or 0
+            )
+            position_lines.append(
+                f"- {symbol}: {qty} shares at ${price} (gain {gain:+}, {gain_pct:+}%)"
+            )
+        positions_text = "\n".join(position_lines) if position_lines else "None"
+
+        prompt_text = (
+            f"Portfolio goal: {portfolio_goal}\n"
+            f"Cash balance: ${cash_balance}\n"
+            f"Positions:\n{positions_text}\n\n"
+            "Discuss performance and how well this portfolio matches the goal. "
+            "Mention relevant news or metrics for key holdings and end with a short recommendation."
+        )
+
+        result = executor.invoke({"input": prompt_text})
+        return result.get("output", "").strip()
     
     def _get_portfolio_cash_balance(self, portfolio_id: str, user_id: str) -> float:
         """

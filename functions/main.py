@@ -606,9 +606,11 @@ def get_portfolio_advice(req):
         position_docs = positions_ref.get()
         positions = [doc.to_dict() for doc in position_docs]
 
-        from portfolio_advice_service import PortfolioAdviceService
-        advice_service = PortfolioAdviceService()
-        advice_text = advice_service.generate_advice(portfolio_goal, cash_balance, positions)
+        from portfolio_service import PortfolioService
+        advice_service = PortfolioService()
+        advice_text = advice_service.generate_portfolio_advice(
+            portfolio_goal, cash_balance, positions
+        )
 
         portfolio_ref = db.collection('portfolios').document(portfolio_id)
         update_data = {
