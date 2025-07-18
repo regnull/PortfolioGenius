@@ -158,34 +158,6 @@ Dismiss a suggested trade.
 }
 ```
 
-### 5. `/portfolio_tools_status` (GET)
-
-Check service status and available tools.
-
-**Response:**
-```json
-{
-    "status": "OK",
-    "message": "Portfolio service is available",
-    "tools_info": {
-        "total_tools": 14,
-        "api_keys_status": {
-            "openai": true,
-            "tiingo": true,
-            "brave_search": false
-        },
-        "available_tools": [
-            "get_stock_price",
-            "get_stock_info",
-            "get_market_summary",
-            "get_tiingo_stock_price",
-            "get_tiingo_fundamentals",
-            ...
-        ]
-    },
-    "timestamp": "2024-12-15T20:00:00"
-}
-```
 
 ## Firestore Collections
 
@@ -322,7 +294,7 @@ The service provides detailed error responses:
 3. Deploy functions:
 
 ```bash
-firebase deploy --only functions:construct_portfolio,functions:get_suggested_trades,functions:convert_suggested_trade,functions:dismiss_suggested_trade,functions:portfolio_tools_status
+firebase deploy --only functions:construct_portfolio,functions:get_suggested_trades,functions:convert_suggested_trade,functions:dismiss_suggested_trade
 ```
 
 ## Testing
@@ -336,8 +308,6 @@ curl -X POST \
   -H "Content-Type: application/json" \
   -d '{"portfolio_goal": "I want to invest $10,000 with medium risk for 10 years"}'
 
-# Test service status
-curl https://your-project.cloudfunctions.net/portfolio_tools_status
 ```
 
 ## Features
