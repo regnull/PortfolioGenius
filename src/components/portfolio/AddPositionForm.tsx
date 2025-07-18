@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { addPosition } from '@/lib/firestore';
 import { Position, SuggestedTrade } from '@/types';
 import { tickerLookupClient } from '@/lib/ticker-lookup-client';
+import { stockPriceClient } from '@/lib/stock-price-client';
 
 interface AddPositionFormProps {
   portfolioId: string;
@@ -29,20 +30,28 @@ export default function AddPositionForm({ portfolioId, onSuccess, onCancel, sugg
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    if (!symbol || name) return;
-    const timeout = setTimeout(async () => {
+  const handleSymbolBlur = async () => {
+    if (!symbol) return;
+    try {
+      const result = await tickerLookupClient.lookupSymbol(symbol);
+      if (result) {
+        setName(result);
+      }
+
       try {
-        const result = await tickerLookupClient.lookupSymbol(symbol);
-        if (result) {
-          setName(result);
+        const priceData = await stockPriceClient.getStockPrice(symbol);
+        setOpenPrice(priceData.price.toString());
+        // Detect crypto tickers in Yahoo format (e.g. BTC-USD)
+        if (symbol.toUpperCase().includes('-USD')) {
+          setType('crypto');
         }
       } catch (err) {
-        console.error('Failed to lookup symbol', err);
+        console.error('Failed to fetch price', err);
       }
-    }, 500);
-    return () => clearTimeout(timeout);
-  }, [symbol]);
+    } catch (err) {
+      console.error('Failed to lookup symbol', err);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -139,6 +148,7 @@ export default function AddPositionForm({ portfolioId, onSuccess, onCancel, sugg
               id="symbol"
               value={symbol}
               onChange={(e) => setSymbol(e.target.value)}
+              onBlur={handleSymbolBlur}
               required
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-gray-900"
               placeholder="AAPL"
@@ -207,7 +217,7 @@ export default function AddPositionForm({ portfolioId, onSuccess, onCancel, sugg
               onChange={(e) => setOpenPrice(e.target.value)}
               required
               min="0"
-              step="0.01"
+              step={type === 'crypto' ? '0.00000001' : '0.01'}
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-gray-900"
               placeholder="150.00"
             />

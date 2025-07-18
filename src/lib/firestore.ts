@@ -23,6 +23,7 @@ const convertFirestoreToPortfolio = (id: string, data: Record<string, unknown>):
   return {
     id,
     ...data,
+    initialCashBalance: data.initialCashBalance as number,
     createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date(data.createdAt as string),
     updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate() : new Date(data.updatedAt as string),
   } as Portfolio;
@@ -467,11 +468,24 @@ export const deletePosition = async (positionId: string) => {
     if (!positionDoc.exists()) {
       throw new Error('Position not found');
     }
-    
+
     const position = positionDoc.data() as Position;
-    
+
+    // Refund cash for the position being deleted
+    const portfolioRef = doc(db, 'portfolios', position.portfolioId);
+    const portfolioSnap = await getDoc(portfolioRef);
+    if (portfolioSnap.exists()) {
+      const portfolioData = portfolioSnap.data();
+      const currentCash = portfolioData.cashBalance || 0;
+      const refund = position.openPrice * position.quantity;
+      await updateDoc(portfolioRef, {
+        cashBalance: currentCash + refund,
+        updatedAt: serverTimestamp()
+      });
+    }
+
     await deleteDoc(doc(db, 'positions', positionId));
-    
+
     // Update portfolio totals after deleting position
     await updatePortfolioTotals(position.portfolioId);
   } catch (error) {

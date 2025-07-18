@@ -46,6 +46,7 @@ export default function CreatePortfolioForm({ onSuccess, onCancel }: CreatePortf
         isPublic,
         isBotPortfolio: isBotPortfolio || false,
         cashBalance: cashBalance,
+        initialCashBalance: cashBalance,
         totalValue: 0,
         totalGainLoss: 0,
         totalGainLossPercent: 0,
