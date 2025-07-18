@@ -161,7 +161,7 @@ export default function SuggestedTrades({ portfolio, onTradeConverted }: Suggest
     
     try {
       // Update suggested trade status to converted
-      await updateSuggestedTradeStatus(tradeToConvert.id, 'converted');
+      await updateSuggestedTradeStatus(portfolio.id, tradeToConvert.id, 'converted');
       
       // Close the form
       setShowAddPositionForm(false);

@@ -410,8 +410,13 @@ class PortfolioService:
                                 extra={"field": field_name, "symbol": ticker_symbol},
                             )
                 
-                # Save to Firestore
-                doc_id = safe_firestore_add(self.db.collection('suggestedTrades'), suggested_trade)
+                # Save to Firestore under portfolio subcollection
+                doc_id = safe_firestore_add(
+                    self.db.collection('portfolios')
+                    .document(str(portfolio_id))
+                    .collection('suggestedTrades'),
+                    suggested_trade,
+                )
                 suggested_trade_ids.append(doc_id)
                 
             except Exception as e:
@@ -500,9 +505,12 @@ class PortfolioService:
         """
         try:
             # Build base query
-            trades_ref = self.db.collection('suggestedTrades')\
-                .where('portfolioId', '==', portfolio_id)\
+            trades_ref = (
+                self.db.collection('portfolios')
+                .document(str(portfolio_id))
+                .collection('suggestedTrades')
                 .where('userId', '==', user_id)
+            )
             
             # Add status filter if provided
             if status:
@@ -541,12 +549,16 @@ class PortfolioService:
             str: ID of the created actual trade
         """
         try:
-            # Get the suggested trade
-            suggested_trade_ref = self.db.collection('suggestedTrades').document(suggested_trade_id)
-            suggested_trade_doc = suggested_trade_ref.get()
-            
-            if not suggested_trade_doc.exists:
+            # Get the suggested trade from any portfolio
+            query = (
+                self.db.collection_group('suggestedTrades')
+                .where(firestore.FieldPath.document_id(), '==', suggested_trade_id)
+            )
+            docs = list(query.get())
+            if not docs:
                 raise ValueError("Suggested trade not found")
+            suggested_trade_doc = docs[0]
+            suggested_trade_ref = suggested_trade_doc.reference
             
             suggested_trade = suggested_trade_doc.to_dict()
             
@@ -605,8 +617,14 @@ class PortfolioService:
                             extra={"field": field_name},
                         )
             
-            # Save actual trade to Firestore
-            actual_trade_id = safe_firestore_add(self.db.collection('trades'), actual_trade)
+            # Save actual trade to Firestore under the portfolio's trades
+            portfolio_id = suggested_trade.get('portfolioId', '')
+            actual_trade_id = safe_firestore_add(
+                self.db.collection('portfolios')
+                .document(str(portfolio_id))
+                .collection('trades'),
+                actual_trade,
+            )
             
             # Update suggested trade status to converted
             update_data = {
@@ -634,12 +652,16 @@ class PortfolioService:
             bool: Success status
         """
         try:
-            # Get the suggested trade
-            suggested_trade_ref = self.db.collection('suggestedTrades').document(suggested_trade_id)
-            suggested_trade_doc = suggested_trade_ref.get()
-            
-            if not suggested_trade_doc.exists:
+            # Get the suggested trade from any portfolio
+            query = (
+                self.db.collection_group('suggestedTrades')
+                .where(firestore.FieldPath.document_id(), '==', suggested_trade_id)
+            )
+            docs = list(query.get())
+            if not docs:
                 raise ValueError("Suggested trade not found")
+            suggested_trade_doc = docs[0]
+            suggested_trade_ref = suggested_trade_doc.reference
             
             suggested_trade = suggested_trade_doc.to_dict()
             
