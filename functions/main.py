@@ -1,6 +1,7 @@
 import json
 from firebase_functions import https_fn, options
 from flask import Flask, jsonify
+from request_utils import handle_cors, parse_json_body
 from google.cloud import firestore
 from datetime import datetime
 import os
@@ -20,29 +21,10 @@ def get_stock_price(req):
     Expects POST request with JSON body: {"ticker": "AAPL"}
     Requires Authorization header with Bearer token.
     """
-    # Handle preflight CORS requests
-    if req.method == 'OPTIONS':
-        headers = {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'POST, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-            'Access-Control-Max-Age': '3600'
-        }
-        return ('', 204, headers)
-    
-    # Set CORS headers
-    headers = {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization'
-    }
-    
-    if req.method != 'POST':
-        response = {
-            "error": "Method Not Allowed",
-            "message": "Only POST requests are supported"
-        }
-        return (json.dumps(response), 405, headers)
+    cors_result = handle_cors(req, ['POST'])
+    if cors_result.must_return:
+        return cors_result.result
+    headers = cors_result.headers
     
     try:
         # Lazy import to avoid initialization timeout
@@ -52,8 +34,8 @@ def get_stock_price(req):
         user_info = AuthUtils.verify_auth_token(req)
         
         # Get request data
-        request_data = req.get_json()
-        if not request_data or 'ticker' not in request_data:
+        request_data = parse_json_body(req)
+        if 'ticker' not in request_data:
             response = {
                 "error": "Bad Request",
                 "message": "Request body must contain 'ticker' field"
@@ -118,41 +100,20 @@ def construct_portfolio(req):
     Returns JSON portfolio recommendation with allocations and rationale.
     If portfolio_id provided, also creates suggested trades in Firestore.
     """
-    # Handle preflight CORS requests
-    if req.method == 'OPTIONS':
-        headers = {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'POST, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-            'Access-Control-Max-Age': '3600'
-        }
-        return ('', 204, headers)
-    
-    # Set CORS headers
-    headers = {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization'
-    }
-    
+    cors_result = handle_cors(req, ['POST'])
+    if cors_result.must_return:
+        return cors_result.result
+    headers = cors_result.headers
+
     try:
-        # Validate request method
-        if req.method != 'POST':
-            response = {
-                "error": "Method Not Allowed",
-                "message": "Only POST requests are supported"
-            }
-            return (json.dumps(response), 405, headers)
         
         # Parse request body
         try:
-            request_data = req.get_json()
-            if not request_data:
-                raise ValueError("Request body must be valid JSON")
-        except Exception as e:
+            request_data = parse_json_body(req)
+        except ValueError as e:
             response = {
                 "error": "Bad Request",
-                "message": f"Invalid JSON in request body: {str(e)}"
+                "message": str(e)
             }
             return (json.dumps(response), 400, headers)
         
@@ -254,31 +215,12 @@ def get_suggested_trades(req):
     
     Returns list of suggested trades for the portfolio.
     """
-    # Handle preflight CORS requests
-    if req.method == 'OPTIONS':
-        headers = {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-            'Access-Control-Max-Age': '3600'
-        }
-        return ('', 204, headers)
-    
-    # Set CORS headers
-    headers = {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization'
-    }
-    
+    cors_result = handle_cors(req, ['GET'])
+    if cors_result.must_return:
+        return cors_result.result
+    headers = cors_result.headers
+
     try:
-        # Validate request method
-        if req.method != 'GET':
-            response = {
-                "error": "Method Not Allowed",
-                "message": "Only GET requests are supported"
-            }
-            return (json.dumps(response), 405, headers)
         
         # Get query parameters
         portfolio_id = req.args.get('portfolio_id')
@@ -360,40 +302,20 @@ def convert_suggested_trade(req):
     Returns the ID of the created actual trade.
     """
     # Handle preflight CORS requests
-    if req.method == 'OPTIONS':
-        headers = {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'POST, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-            'Access-Control-Max-Age': '3600'
-        }
-        return ('', 204, headers)
-    
-    # Set CORS headers
-    headers = {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization'
-    }
-    
+    cors_result = handle_cors(req, ['POST'])
+    if cors_result.must_return:
+        return cors_result.result
+    headers = cors_result.headers
+
     try:
-        # Validate request method
-        if req.method != 'POST':
-            response = {
-                "error": "Method Not Allowed",
-                "message": "Only POST requests are supported"
-            }
-            return (json.dumps(response), 405, headers)
         
         # Parse request body
         try:
-            request_data = req.get_json()
-            if not request_data:
-                raise ValueError("Request body must be valid JSON")
-        except Exception as e:
+            request_data = parse_json_body(req)
+        except ValueError as e:
             response = {
                 "error": "Bad Request",
-                "message": f"Invalid JSON in request body: {str(e)}"
+                "message": str(e)
             }
             return (json.dumps(response), 400, headers)
         
@@ -483,40 +405,20 @@ def dismiss_suggested_trade(req):
     Returns success status.
     """
     # Handle preflight CORS requests
-    if req.method == 'OPTIONS':
-        headers = {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'POST, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-            'Access-Control-Max-Age': '3600'
-        }
-        return ('', 204, headers)
-    
-    # Set CORS headers
-    headers = {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization'
-    }
-    
+    cors_result = handle_cors(req, ['POST'])
+    if cors_result.must_return:
+        return cors_result.result
+    headers = cors_result.headers
+
     try:
-        # Validate request method
-        if req.method != 'POST':
-            response = {
-                "error": "Method Not Allowed",
-                "message": "Only POST requests are supported"
-            }
-            return (json.dumps(response), 405, headers)
         
         # Parse request body
         try:
-            request_data = req.get_json()
-            if not request_data:
-                raise ValueError("Request body must be valid JSON")
-        except Exception as e:
+            request_data = parse_json_body(req)
+        except ValueError as e:
             response = {
                 "error": "Bad Request",
-                "message": f"Invalid JSON in request body: {str(e)}"
+                "message": str(e)
             }
             return (json.dumps(response), 400, headers)
         
