@@ -10,6 +10,7 @@ import { useStockPrices, PositionWithCurrentPrice } from '@/hooks/useStockPrices
 import AddPositionForm from '@/components/portfolio/AddPositionForm';
 import ClosePositionForm from '@/components/portfolio/ClosePositionForm';
 import SuggestedTrades from '@/components/portfolio/SuggestedTrades';
+import MarkdownViewer from '@/components/MarkdownViewer';
 import { portfolioApiClient } from '@/lib/portfolio-api-client';
 import Link from 'next/link';
 
@@ -439,19 +440,6 @@ export default function PortfolioPage() {
                   <p className="text-sm text-blue-800">{portfolio.goal}</p>
                 </div>
               )}
-              <button
-                onClick={handleRequestAdvice}
-                disabled={requestingAdvice}
-                className="mt-3 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400 transition-colors text-sm"
-              >
-                {requestingAdvice ? 'Requesting Advice...' : 'Get Portfolio Advice'}
-              </button>
-              {portfolio.advice && (
-                <div className="mt-3 p-3 bg-green-50 rounded-lg">
-                  <h4 className="text-sm font-medium text-green-900 mb-1">Portfolio Advice</h4>
-                  <p className="text-sm text-green-800 whitespace-pre-line">{portfolio.advice}</p>
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -627,6 +615,21 @@ export default function PortfolioPage() {
             <h2 className="text-xl font-semibold text-gray-900">Trades</h2>
           </div>
           {renderTradesTable()}
+        </div>
+
+        {/* Portfolio Advice Section */}
+        <div className="bg-white rounded-lg shadow-md p-6 mt-8">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Portfolio Advice</h2>
+          <button
+            onClick={handleRequestAdvice}
+            disabled={requestingAdvice}
+            className="mb-4 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400 transition-colors text-sm"
+          >
+            {requestingAdvice ? 'Requesting Advice...' : 'Get Portfolio Advice'}
+          </button>
+          {portfolio.advice && (
+            <MarkdownViewer content={portfolio.advice} />
+          )}
         </div>
 
         {/* Portfolio Info */}
