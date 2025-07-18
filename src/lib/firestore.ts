@@ -467,11 +467,24 @@ export const deletePosition = async (positionId: string) => {
     if (!positionDoc.exists()) {
       throw new Error('Position not found');
     }
-    
+
     const position = positionDoc.data() as Position;
-    
+
+    // Refund cash for the position being deleted
+    const portfolioRef = doc(db, 'portfolios', position.portfolioId);
+    const portfolioSnap = await getDoc(portfolioRef);
+    if (portfolioSnap.exists()) {
+      const portfolioData = portfolioSnap.data();
+      const currentCash = portfolioData.cashBalance || 0;
+      const refund = position.openPrice * position.quantity;
+      await updateDoc(portfolioRef, {
+        cashBalance: currentCash + refund,
+        updatedAt: serverTimestamp()
+      });
+    }
+
     await deleteDoc(doc(db, 'positions', positionId));
-    
+
     // Update portfolio totals after deleting position
     await updatePortfolioTotals(position.portfolioId);
   } catch (error) {

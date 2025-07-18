@@ -370,8 +370,11 @@ class TiingoCryptoPriceTool(BaseTool):
                 "Authorization": f"Token {api_key}"
             }
             
+            # Convert Yahoo-style crypto tickers (e.g. BTC-USD) to
+            # Tiingo format which uses no separators (e.g. BTCUSD)
+            tiingo_symbol = symbol.upper().replace("-", "").replace("/", "")
             top_params = {
-                "tickers": symbol.upper(),
+                "tickers": tiingo_symbol,
                 "format": "json"
             }
             
