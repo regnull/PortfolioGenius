@@ -521,31 +521,32 @@ export const deletePosition = async (
   positionId: string
 ) => {
   try {
-    // Get the position data before deleting to access portfolioId
-    const positionDoc = await getDoc(doc(db, 'portfolios', portfolioId, 'positions', positionId));
+    // Verify position exists before attempting to delete
+    const positionRef = doc(db, 'portfolios', portfolioId, 'positions', positionId);
+    const positionDoc = await getDoc(positionRef);
     if (!positionDoc.exists()) {
       throw new Error('Position not found');
     }
 
-    const position = positionDoc.data() as Position;
+    // Delete all trades associated with this position
+    const tradesQuery = query(
+      collection(db, 'portfolios', portfolioId, 'trades'),
+      where('positionId', '==', positionId)
+    );
+    const tradesSnap = await getDocs(tradesQuery);
+    const deleteTradePromises = tradesSnap.docs.map((trade) =>
+      deleteDoc(doc(db, 'portfolios', portfolioId, 'trades', trade.id))
+    );
+    await Promise.all(deleteTradePromises);
 
-    // Refund cash for the position being deleted
-    const portfolioRef = doc(db, 'portfolios', position.portfolioId);
-    const portfolioSnap = await getDoc(portfolioRef);
-    if (portfolioSnap.exists()) {
-      const portfolioData = portfolioSnap.data();
-      const currentCash = portfolioData.cashBalance || 0;
-      const refund = position.openPrice * position.quantity;
-      await updateDoc(portfolioRef, {
-        cashBalance: currentCash + refund,
-        updatedAt: serverTimestamp()
-      });
-    }
+    // Delete the position itself
+    await deleteDoc(positionRef);
 
-    await deleteDoc(doc(db, 'portfolios', portfolioId, 'positions', positionId));
+    // Recalculate cash balance after removing trades
+    await recalculateCashBalance(portfolioId);
 
     // Update portfolio totals after deleting position
-    await updatePortfolioTotals(position.portfolioId);
+    await updatePortfolioTotals(portfolioId);
   } catch (error) {
     console.error('Error deleting position:', error);
     throw error;
