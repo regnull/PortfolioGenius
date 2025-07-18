@@ -134,7 +134,7 @@ export default function PortfolioPage() {
                   {position.symbol}
                 </td>
                 <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {position.name}
+                  {position.name || 'N/A'}
                 </td>
                 <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 capitalize">

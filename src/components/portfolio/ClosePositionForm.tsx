@@ -80,7 +80,8 @@ export default function ClosePositionForm({ position, onSuccess, onCancel }: Clo
           
           <div className="mb-4 p-3 bg-gray-50 rounded-md">
             <p className="text-sm text-gray-600">
-              <span className="font-medium">{position.symbol}</span> - {position.name}
+              <span className="font-medium">{position.symbol}</span>{' '}
+              {position.name ? `- ${position.name}` : ''}
             </p>
             <p className="text-sm text-gray-600">
               Quantity: {position.quantity} @ {formatCurrency(position.openPrice)}

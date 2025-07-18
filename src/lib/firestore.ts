@@ -198,7 +198,7 @@ export const addPosition = async (positionData: Omit<Position, 'id'>) => {
       price: positionData.openPrice,
       fees: positionData.fees,
       positionId: docRef.id,
-      notes: `Opened position in ${positionData.name}`
+      notes: `Opened position in ${positionData.name || positionData.symbol}`
     });
     
     // Update portfolio cash balance (decrease cash for purchase)
@@ -298,7 +298,7 @@ export const closePosition = async (positionId: string, closePrice: number, quan
         price: closePrice,
         fees: fees,
         positionId: positionId,
-        notes: `Closed full position in ${position.name}`
+        notes: `Closed full position in ${position.name || position.symbol}`
       });
     } else {
       // Partial close - create a new closed position and update the original
@@ -335,7 +335,7 @@ export const closePosition = async (positionId: string, closePrice: number, quan
         price: closePrice,
         fees: fees,
         positionId: newClosedPositionDoc.id,
-        notes: `Closed partial position in ${position.name}`
+        notes: `Closed partial position in ${position.name || position.symbol}`
       });
       
       // Update original position with remaining quantity
