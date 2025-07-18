@@ -543,3 +543,99 @@ def lookup_symbol(req):
             "message": f"Failed to lookup symbol: {str(e)}",
         }
         return (json.dumps(response), 500, headers)
+
+
+@https_fn.on_request(memory=options.MemoryOption.GB_1)
+def get_portfolio_advice(req):
+    """Generate portfolio advice using an LLM and update the portfolio."""
+    cors_result = handle_cors(req, ['POST'])
+    if cors_result.must_return:
+        return cors_result.result
+    headers = cors_result.headers
+
+    try:
+        # Verify bearer token matches environment variable
+        expected_token = os.getenv('CLOUD_TASKS_BEARER_TOKEN')
+        if not expected_token:
+            response = {
+                'error': 'Server configuration error',
+                'message': 'CLOUD_TASKS_BEARER_TOKEN is not set'
+            }
+            return (json.dumps(response), 500, headers)
+
+        auth_header = req.headers.get('Authorization', '')
+        if not auth_header.startswith('Bearer '):
+            response = {
+                'error': 'Unauthorized',
+                'message': 'Missing bearer token'
+            }
+            return (json.dumps(response), 401, headers)
+
+        token = auth_header.split('Bearer ')[1]
+        if token != expected_token:
+            response = {
+                'error': 'Unauthorized',
+                'message': 'Invalid token'
+            }
+            return (json.dumps(response), 401, headers)
+
+        request_data = parse_json_body(req)
+        portfolio_id = request_data.get('portfolio_id')
+        if not portfolio_id:
+            response = {
+                'error': 'Bad Request',
+                'message': 'portfolio_id is required in request body'
+            }
+            return (json.dumps(response), 400, headers)
+
+        db = firestore.Client()
+
+        portfolio_doc = db.collection('portfolios').document(portfolio_id).get()
+        if not portfolio_doc.exists:
+            response = {
+                'error': 'Not Found',
+                'message': 'Portfolio not found'
+            }
+            return (json.dumps(response), 404, headers)
+
+        portfolio_data = portfolio_doc.to_dict()
+        portfolio_goal = portfolio_data.get('goal', '')
+        cash_balance = portfolio_data.get('cashBalance', 0.0)
+
+        positions_ref = db.collection('portfolios').document(portfolio_id).collection('positions')
+        position_docs = positions_ref.get()
+        positions = [doc.to_dict() for doc in position_docs]
+
+        from portfolio_advice_service import PortfolioAdviceService
+        advice_service = PortfolioAdviceService()
+        advice_text = advice_service.generate_advice(portfolio_goal, cash_balance, positions)
+
+        portfolio_ref = db.collection('portfolios').document(portfolio_id)
+        update_data = {
+            'advice': advice_text,
+            'updatedAt': datetime.now()
+        }
+        from firestore_utils import safe_firestore_update
+        safe_firestore_update(portfolio_ref, update_data)
+
+        response = {
+            'portfolio_id': portfolio_id,
+            'advice': advice_text,
+            'timestamp': datetime.now().isoformat()
+        }
+
+        return (json.dumps(response), 200, headers)
+
+    except ValueError as e:
+        response = {
+            'error': 'Bad Request',
+            'message': str(e)
+        }
+        return (json.dumps(response), 400, headers)
+
+    except Exception as e:
+        response = {
+            'error': 'Internal Server Error',
+            'message': f'Failed to generate portfolio advice: {str(e)}'
+        }
+        return (json.dumps(response), 500, headers)
