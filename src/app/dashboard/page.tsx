@@ -5,14 +5,12 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import CreatePortfolioForm from '@/components/portfolio/CreatePortfolioForm';
 import PortfolioList from '@/components/portfolio/PortfolioList';
-import { migrateUserData } from '@/lib/firestore';
 
 export default function Dashboard() {
   const { user, loading, logout } = useAuth();
   const router = useRouter();
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [portfolioCreated, setPortfolioCreated] = useState(false);
-  const [migrating, setMigrating] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -25,19 +23,6 @@ export default function Dashboard() {
     setPortfolioCreated(!portfolioCreated);
   };
 
-  const handleMigrate = async () => {
-    if (!user) return;
-    setMigrating(true);
-    try {
-      await migrateUserData(user.uid);
-      alert('Migration complete');
-    } catch (err) {
-      console.error('Migration failed', err);
-      alert('Migration failed');
-    } finally {
-      setMigrating(false);
-    }
-  };
 
   if (loading) {
     return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
@@ -76,12 +61,6 @@ export default function Dashboard() {
                 className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium transition-colors"
               >
                 {showCreateForm ? 'Cancel' : 'Create Portfolio'}
-              </button>
-              <button
-                onClick={handleMigrate}
-                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md font-medium transition-colors"
-              >
-                {migrating ? 'Migrating...' : 'Migrate Data'}
               </button>
             </div>
           </div>

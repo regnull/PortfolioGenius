@@ -623,27 +623,3 @@ export const subscribeSuggestedTrades = (
     throw error;
   }
 };
-
-export const migrateUserData = async (userId: string) => {
-  try {
-    const collectionsToMigrate = ['positions'];
-
-    for (const colName of collectionsToMigrate) {
-      const q = query(collection(db, colName));
-      const snapshot = await getDocs(q);
-
-      for (const docSnap of snapshot.docs) {
-        const data = docSnap.data();
-        const portfolioId = data.portfolioId;
-        if (!portfolioId) continue;
-
-        const destRef = doc(db, 'portfolios', portfolioId, colName, docSnap.id);
-        await setDoc(destRef, data);
-        await deleteDoc(doc(db, colName, docSnap.id));
-      }
-    }
-  } catch (error) {
-    console.error('Error migrating user data:', error);
-    throw error;
-  }
-};
