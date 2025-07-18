@@ -626,10 +626,10 @@ export const subscribeSuggestedTrades = (
 
 export const migrateUserData = async (userId: string) => {
   try {
-    const collectionsToMigrate = ['positions', 'suggestedTrades', 'trades'];
+    const collectionsToMigrate = ['positions'];
 
     for (const colName of collectionsToMigrate) {
-      const q = query(collection(db, colName), where('userId', '==', userId));
+      const q = query(collection(db, colName));
       const snapshot = await getDocs(q);
 
       for (const docSnap of snapshot.docs) {
