@@ -17,6 +17,9 @@ from firestore_utils import safe_firestore_add, safe_firestore_update, clean_str
 from yahoo_finance_tools import get_yahoo_finance_tools
 from tiingo_tools import get_tiingo_tools
 from brave_search_tools import get_brave_search_tools
+from logging_utils import get_logger
+
+logger = get_logger()
 
 
 class PortfolioService:
@@ -284,7 +287,10 @@ class PortfolioService:
                 
                 # Skip if essential fields are missing
                 if not ticker_symbol or allocation_percent <= 0:
-                    print(f"Skipping recommendation due to missing essential fields: {recommendation}")
+                    logger.warning(
+                        "Skipping recommendation due to missing essential fields",
+                        extra={"recommendation": recommendation},
+                    )
                     continue
                 
                 # Calculate dollar amount for this allocation
@@ -338,14 +344,20 @@ class PortfolioService:
                         elif field_name in ['reasoning', 'rationale', 'portfolio_recommendation_id', 'name']:
                             suggested_trade[field_name] = ''  # Set string fields to empty string
                         else:
-                            print(f"Warning: Field {field_name} is None in suggested trade for {ticker_symbol}")
+                            logger.warning(
+                                "Field is None in suggested trade",
+                                extra={"field": field_name, "symbol": ticker_symbol},
+                            )
                 
                 # Save to Firestore
                 doc_ref = safe_firestore_add(self.db.collection('suggestedTrades'), suggested_trade)
                 suggested_trade_ids.append(doc_ref[1].id)
                 
             except Exception as e:
-                print(f"Error creating suggested trade for {recommendation}: {e}")
+                logger.error(
+                    "Error creating suggested trade",
+                    extra={"recommendation": recommendation, "error": str(e)},
+                )
                 continue
         
         return suggested_trade_ids
@@ -527,7 +539,10 @@ class PortfolioService:
                         actual_trade[field_name] = 0.0  # Set numeric fields to 0
                     else:
                         actual_trade[field_name] = ''  # Set string fields to empty string
-                        print(f"Warning: Field {field_name} is None in actual trade")
+                        logger.warning(
+                            "Field is None in actual trade",
+                            extra={"field": field_name},
+                        )
             
             # Save actual trade to Firestore
             trade_ref = safe_firestore_add(self.db.collection('trades'), actual_trade)

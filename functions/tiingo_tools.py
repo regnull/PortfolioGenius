@@ -7,6 +7,9 @@ Provides access to Tiingo's financial data API including stocks, news, fundament
 import os
 import json
 import requests
+from logging_utils import get_logger
+
+logger = get_logger()
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional, Type
 from langchain.tools import BaseTool
@@ -448,36 +451,36 @@ def get_tiingo_tools():
 if __name__ == "__main__":
     # Test the tools
     tools = get_tiingo_tools()
-    
-    print("Testing Tiingo Tools:")
-    print("=" * 50)
-    
+
+    logger.info("Testing Tiingo Tools")
+    logger.info("=" * 50)
+
     # Test stock price tool
-    print("\n1. Testing Stock Price Tool:")
+    logger.info("\n1. Testing Stock Price Tool:")
     price_tool = TiingoStockPriceTool()
     result = price_tool._run("AAPL")
-    print(result)
-    
+    logger.info(result)
+
     # Test stock metadata tool
-    print("\n2. Testing Stock Metadata Tool:")
+    logger.info("\n2. Testing Stock Metadata Tool:")
     metadata_tool = TiingoStockMetadataTool()
     result = metadata_tool._run("AAPL")
-    print(result)
-    
+    logger.info(result)
+
     # Test news tool
-    print("\n3. Testing Stock News Tool:")
+    logger.info("\n3. Testing Stock News Tool:")
     news_tool = TiingoStockNewsTool()
     result = news_tool._run(["AAPL", "GOOGL"], limit=3)
-    print(result)
-    
+    logger.info(result)
+
     # Test fundamentals tool
-    print("\n4. Testing Fundamentals Tool:")
+    logger.info("\n4. Testing Fundamentals Tool:")
     fundamentals_tool = TiingoFundamentalsTool()
     result = fundamentals_tool._run("AAPL")
-    print(result)
-    
+    logger.info(result)
+
     # Test crypto price tool
-    print("\n5. Testing Crypto Price Tool:")
+    logger.info("\n5. Testing Crypto Price Tool:")
     crypto_tool = TiingoCryptoPriceTool()
     result = crypto_tool._run("BTCUSD")
-    print(result) 
+    logger.info(result)

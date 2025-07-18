@@ -8,6 +8,9 @@ import yfinance as yf
 import json
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional, Type
+from logging_utils import get_logger
+
+logger = get_logger()
 from langchain.tools import BaseTool
 from pydantic import BaseModel, Field
 
@@ -278,30 +281,30 @@ def get_yahoo_finance_tools():
 if __name__ == "__main__":
     # Test the tools
     tools = get_yahoo_finance_tools()
-    
-    print("Testing Yahoo Finance Tools:")
-    print("=" * 50)
-    
+
+    logger.info("Testing Yahoo Finance Tools")
+    logger.info("=" * 50)
+
     # Test stock price tool
-    print("\n1. Testing Stock Price Tool:")
+    logger.info("\n1. Testing Stock Price Tool:")
     price_tool = StockPriceTool()
     result = price_tool._run("AAPL", "1d")
-    print(result)
-    
+    logger.info(result)
+
     # Test news tool
-    print("\n2. Testing Stock News Tool:")
+    logger.info("\n2. Testing Stock News Tool:")
     news_tool = StockNewsTool()
     result = news_tool._run("AAPL", 3)
-    print(result)
-    
+    logger.info(result)
+
     # Test info tool
-    print("\n3. Testing Stock Info Tool:")
+    logger.info("\n3. Testing Stock Info Tool:")
     info_tool = StockInfoTool()
     result = info_tool._run("AAPL")
-    print(result)
-    
+    logger.info(result)
+
     # Test market summary tool
-    print("\n4. Testing Market Summary Tool:")
+    logger.info("\n4. Testing Market Summary Tool:")
     market_tool = MarketSummaryTool()
     result = market_tool._run()
-    print(result)
+    logger.info(result)
