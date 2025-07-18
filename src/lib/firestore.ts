@@ -25,6 +25,7 @@ const convertFirestoreToPortfolio = (id: string, data: Record<string, unknown>):
     id,
     ...data,
     initialCashBalance: data.initialCashBalance as number,
+    advice: data.advice as string | undefined,
     createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date(data.createdAt as string),
     updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate() : new Date(data.updatedAt as string),
   } as Portfolio;
@@ -620,6 +621,25 @@ export const subscribeSuggestedTrades = (
     });
   } catch (error) {
     console.error('Error setting up suggested trades listener:', error);
+    throw error;
+  }
+};
+
+export const subscribePortfolio = (
+  portfolioId: string,
+  callback: (portfolio: Portfolio | null) => void
+): Unsubscribe => {
+  try {
+    const portfolioRef = doc(db, 'portfolios', portfolioId);
+    return onSnapshot(portfolioRef, (snapshot) => {
+      if (snapshot.exists()) {
+        callback(convertFirestoreToPortfolio(snapshot.id, snapshot.data()));
+      } else {
+        callback(null);
+      }
+    });
+  } catch (error) {
+    console.error('Error setting up portfolio listener:', error);
     throw error;
   }
 };

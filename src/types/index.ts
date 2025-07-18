@@ -13,6 +13,7 @@ export interface Portfolio {
   name?: string;
   description?: string;
   goal?: string;
+  advice?: string;
   isPublic: boolean;
   isBotPortfolio?: boolean;
   cashBalance: number;
