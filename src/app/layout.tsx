@@ -16,6 +16,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Portfolio Genius",
   description: "Track and manage your investment portfolios",
+  icons: {
+    icon: "/icon.svg",
+  },
 };
 
 export default function RootLayout({
