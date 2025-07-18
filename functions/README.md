@@ -15,30 +15,17 @@ functions/
 
 ## Functions
 
-### Health Check
-- **Function**: `health`
-- **Endpoint**: `/health`
-- **Method**: GET
-- **Description**: Basic health check that returns "OK" status
-- **Response**: 
-  ```json
-  {
-    "status": "OK",
-    "message": "Portfolio Genius API is healthy",
-    "timestamp": "2025-01-16T00:00:00Z"
-  }
-  ```
+The following Firebase functions are deployed:
 
-### API Gateway
-- **Function**: `api`
-- **Endpoint**: `/api/*`
-- **Methods**: GET, POST, PUT, DELETE, OPTIONS
-- **Description**: Main API gateway with CORS support and routing
-- **Features**:
-  - CORS headers for cross-origin requests
-  - Route handling for different endpoints
-  - 404 responses for unhandled routes
-  - Preflight OPTIONS request handling
+| Function | Endpoint | Method |
+|----------|----------|-------|
+| `get_stock_price` | `/get_stock_price` | `POST` |
+| `construct_portfolio` | `/construct_portfolio` | `POST` |
+| `get_suggested_trades` | `/get_suggested_trades` | `GET` |
+| `convert_suggested_trade` | `/convert_suggested_trade` | `POST` |
+| `dismiss_suggested_trade` | `/dismiss_suggested_trade` | `POST` |
+
+All endpoints expect a Firebase Auth bearer token and return JSON responses.
 
 ## Setup
 
@@ -72,8 +59,7 @@ functions/
 
 2. **Deploy specific function**:
    ```bash
-   firebase deploy --only functions:health
-   firebase deploy --only functions:api
+   firebase deploy --only functions:construct_portfolio
    ```
 
 ## Testing
@@ -83,14 +69,12 @@ functions/
    firebase emulators:start --only functions
    ```
 
-2. **Test health endpoint**:
+2. **Test construct portfolio endpoint**:
    ```bash
-   curl http://localhost:5001/your-project-id/us-central1/health
-   ```
-
-3. **Test API endpoint**:
-   ```bash
-   curl http://localhost:5001/your-project-id/us-central1/api/health
+   curl -X POST \
+     http://localhost:5001/your-project-id/us-central1/construct_portfolio \
+     -H "Content-Type: application/json" \
+     -d '{"portfolio_goal": "Test goal"}'
    ```
 
 ## Environment Variables
