@@ -10,10 +10,23 @@ import {
   where, 
   orderBy, 
   limit,
-  serverTimestamp
+  serverTimestamp,
+  onSnapshot,
+  Unsubscribe,
+  Timestamp
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { User, Portfolio, Trade, Position } from '@/types';
+import { User, Portfolio, Trade, Position, SuggestedTrade } from '@/types';
+
+// Helper function to convert Firestore data to Portfolio with proper Date objects
+const convertFirestoreToPortfolio = (id: string, data: Record<string, unknown>): Portfolio => {
+  return {
+    id,
+    ...data,
+    createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date(data.createdAt as string),
+    updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate() : new Date(data.updatedAt as string),
+  } as Portfolio;
+};
 
 export const createUser = async (userId: string, userData: Omit<User, 'id'>) => {
   try {
@@ -59,7 +72,7 @@ export const getPortfolio = async (portfolioId: string): Promise<Portfolio | nul
   try {
     const portfolioDoc = await getDoc(doc(db, 'portfolios', portfolioId));
     if (portfolioDoc.exists()) {
-      return { id: portfolioDoc.id, ...portfolioDoc.data() } as Portfolio;
+      return convertFirestoreToPortfolio(portfolioDoc.id, portfolioDoc.data());
     }
     return null;
   } catch (error) {
@@ -76,10 +89,7 @@ export const getPortfolios = async (userId: string): Promise<Portfolio[]> => {
       orderBy('createdAt', 'desc')
     );
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    } as Portfolio));
+    return querySnapshot.docs.map(doc => convertFirestoreToPortfolio(doc.id, doc.data()));
   } catch (error) {
     console.error('Error getting portfolios:', error);
     throw error;
@@ -95,10 +105,7 @@ export const getPublicPortfolios = async (): Promise<Portfolio[]> => {
       limit(50)
     );
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    } as Portfolio));
+    return querySnapshot.docs.map(doc => convertFirestoreToPortfolio(doc.id, doc.data()));
   } catch (error) {
     console.error('Error getting public portfolios:', error);
     throw error;
@@ -469,6 +476,75 @@ export const deletePosition = async (positionId: string) => {
     await updatePortfolioTotals(position.portfolioId);
   } catch (error) {
     console.error('Error deleting position:', error);
+    throw error;
+  }
+};
+
+export const updateSuggestedTradeStatus = async (
+  tradeId: string,
+  status: 'pending' | 'converted' | 'dismissed'
+) => {
+  try {
+    const updateData: any = {
+      status,
+      updatedAt: serverTimestamp()
+    };
+
+    if (status === 'converted') {
+      updateData.convertedAt = serverTimestamp();
+    } else if (status === 'dismissed') {
+      updateData.dismissedAt = serverTimestamp();
+    }
+
+    await updateDoc(doc(db, 'suggestedTrades', tradeId), updateData);
+  } catch (error) {
+    console.error('Error updating suggested trade status:', error);
+    throw error;
+  }
+};
+
+export const subscribeSuggestedTrades = (
+  portfolioId: string,
+  userId: string,
+  callback: (trades: SuggestedTrade[]) => void,
+  status?: 'pending' | 'converted' | 'dismissed'
+): Unsubscribe => {
+  try {
+    let q = query(
+      collection(db, 'suggestedTrades'),
+      where('portfolioId', '==', portfolioId),
+      where('userId', '==', userId),
+      orderBy('createdAt', 'desc')
+    );
+
+    // Add status filter if provided
+    if (status) {
+      q = query(
+        collection(db, 'suggestedTrades'),
+        where('portfolioId', '==', portfolioId),
+        where('userId', '==', userId),
+        where('status', '==', status),
+        orderBy('createdAt', 'desc')
+      );
+    }
+
+    return onSnapshot(q, (snapshot) => {
+      const trades: SuggestedTrade[] = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        trades.push({
+          id: doc.id,
+          ...data,
+          // Convert Firestore timestamps to Date objects
+          createdAt: data.createdAt?.toDate() || new Date(),
+          updatedAt: data.updatedAt?.toDate() || new Date(),
+          dismissedAt: data.dismissedAt?.toDate() || undefined,
+        } as SuggestedTrade);
+      });
+      callback(trades);
+    });
+  } catch (error) {
+    console.error('Error setting up suggested trades listener:', error);
     throw error;
   }
 };

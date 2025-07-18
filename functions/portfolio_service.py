@@ -122,7 +122,7 @@ class PortfolioService:
             
             Each recommendation must include:
             - ticker_symbol: The stock/ETF ticker symbol
-            - allocation_percent: Percentage of total portfolio (must sum to 100%)
+            - allocation_percent: Percentage of total portfolio as a number (e.g., 15.0 for 15%, NOT 0.15). All allocations must sum to 100%.
             - rationale: Investment thesis and reasoning for inclusion
             - notes: Additional details including ACTUAL CURRENT PRICES from tools, key metrics, and specific considerations
             
@@ -251,6 +251,39 @@ class PortfolioService:
             "available_tools": [tool.name for tool in self.all_tools]
         }
     
+    def _get_portfolio_cash_balance(self, portfolio_id: str, user_id: str) -> float:
+        """
+        Fetch the actual cash balance from the portfolio document.
+        
+        Args:
+            portfolio_id: ID of the portfolio
+            user_id: ID of the user (for authorization)
+        
+        Returns:
+            float: The portfolio's cash balance
+        """
+        try:
+            portfolio_doc = self.db.collection('portfolios').document(portfolio_id).get()
+            
+            if not portfolio_doc.exists:
+                print(f"Portfolio {portfolio_id} not found, using default cash balance")
+                return 10000.0
+            
+            portfolio_data = portfolio_doc.to_dict()
+            
+            # Verify user ownership
+            if portfolio_data.get('userId') != user_id:
+                print(f"User {user_id} does not own portfolio {portfolio_id}, using default cash balance")
+                return 10000.0
+            
+            cash_balance = portfolio_data.get('cashBalance', 10000.0)
+            print(f"Retrieved cash balance for portfolio {portfolio_id}: ${cash_balance}")
+            return float(cash_balance)
+            
+        except Exception as e:
+            print(f"Error fetching portfolio cash balance: {e}, using default")
+            return 10000.0
+
     def _create_suggested_trades_from_portfolio(self, portfolio_recommendation: Dict[str, Any], portfolio_id: str, user_id: str) -> List[str]:
         """
         Convert portfolio recommendations into suggested trades and save to Firestore.
@@ -267,43 +300,70 @@ class PortfolioService:
         
         # Get recommendations from the portfolio
         recommendations = portfolio_recommendation.get('recommendations', [])
-        total_investment = portfolio_recommendation.get('portfolio_summary', {}).get('total_investment', '$10,000')
         
-        # Parse investment amount (remove $ and commas)
-        try:
-            investment_amount = float(total_investment.replace('$', '').replace(',', ''))
-        except (ValueError, AttributeError):
-            investment_amount = 10000.0  # Default fallback
+        # Get the actual cash balance from the portfolio instead of using hardcoded amount
+        cash_balance = self._get_portfolio_cash_balance(portfolio_id, user_id)
+        print(f"Using cash balance of ${cash_balance} for calculating suggested trades")
         
-        for recommendation in recommendations:
+        print(f"Processing {len(recommendations)} recommendations...")
+        
+        for i, recommendation in enumerate(recommendations, 1):
             try:
+                print(f"\n--- Processing recommendation {i} ---")
+                print(f"Raw recommendation data: {recommendation}")
+                
                 ticker_symbol = recommendation.get('ticker_symbol', '').upper().strip()
                 allocation_percent = recommendation.get('allocation_percent', 0)
                 rationale = recommendation.get('rationale', '').strip()
                 notes = recommendation.get('notes', '').strip()
                 
+                print(f"Extracted values:")
+                print(f"  ticker_symbol: '{ticker_symbol}'")
+                print(f"  allocation_percent: {allocation_percent} (type: {type(allocation_percent)})")
+                print(f"  rationale: '{rationale[:50]}...' (length: {len(rationale)})")
+                print(f"  notes: '{notes[:50]}...' (length: {len(notes)})")
+                
                 # Skip if essential fields are missing
                 if not ticker_symbol or allocation_percent <= 0:
-                    print(f"Skipping recommendation due to missing essential fields: {recommendation}")
+                    print(f"SKIPPING: Missing essential fields - ticker: '{ticker_symbol}', allocation: {allocation_percent}")
                     continue
                 
-                # Calculate dollar amount for this allocation
-                dollar_amount = investment_amount * (allocation_percent / 100)
+                # Calculate dollar amount for this allocation using actual cash balance
+                print(f"Calculating dollar amount:")
+                print(f"  cash_balance: ${cash_balance}")
+                print(f"  allocation_percent: {allocation_percent}")
+                print(f"  formula: {cash_balance} * ({allocation_percent} / 100)")
+                
+                dollar_amount = cash_balance * (allocation_percent / 100)
+                print(f"  dollar_amount: ${dollar_amount}")
                 
                 # Extract current price from notes if available
                 current_price = None
+                print(f"Attempting to extract price from notes: '{notes}'")
+                
                 if 'price:' in notes.lower():
                     try:
                         # Extract price from notes like "Current price: $195.50"
                         price_part = notes.lower().split('price:')[1].split(',')[0].strip()
                         current_price = float(price_part.replace('$', '').strip())
-                    except (IndexError, ValueError):
+                        print(f"  Successfully extracted price: ${current_price}")
+                    except (IndexError, ValueError) as e:
+                        print(f"  Failed to extract price: {e}")
                         current_price = None
+                else:
+                    print(f"  No 'price:' found in notes")
                 
                 # Calculate suggested quantity if we have a price
                 suggested_quantity = None
                 if current_price and current_price > 0:
+                    print(f"Calculating shares:")
+                    print(f"  formula: {dollar_amount} / {current_price}")
                     suggested_quantity = round(dollar_amount / current_price, 2)
+                    print(f"  FINAL RESULT: {suggested_quantity} shares for {ticker_symbol}")
+                    print(f"  Verification: {suggested_quantity} shares * ${current_price} = ${suggested_quantity * current_price:.2f} (target: ${dollar_amount:.2f})")
+                else:
+                    print(f"  No valid price available for {ticker_symbol}, setting quantity to 0")
+                    suggested_quantity = 0
                 
                 # Create suggested trade document with all required fields
                 suggested_trade = {
@@ -341,8 +401,8 @@ class PortfolioService:
                             print(f"Warning: Field {field_name} is None in suggested trade for {ticker_symbol}")
                 
                 # Save to Firestore
-                doc_ref = safe_firestore_add(self.db.collection('suggestedTrades'), suggested_trade)
-                suggested_trade_ids.append(doc_ref[1].id)
+                doc_id = safe_firestore_add(self.db.collection('suggestedTrades'), suggested_trade)
+                suggested_trade_ids.append(doc_id)
                 
             except Exception as e:
                 print(f"Error creating suggested trade for {recommendation}: {e}")
@@ -530,14 +590,13 @@ class PortfolioService:
                         print(f"Warning: Field {field_name} is None in actual trade")
             
             # Save actual trade to Firestore
-            trade_ref = safe_firestore_add(self.db.collection('trades'), actual_trade)
-            actual_trade_id = trade_ref[1].id
+            actual_trade_id = safe_firestore_add(self.db.collection('trades'), actual_trade)
             
-            # Update suggested trade status to executed
+            # Update suggested trade status to converted
             update_data = {
-                'status': 'executed',
-                'executed_at': datetime.now(),
-                'actual_trade_id': str(actual_trade_id)
+                'status': 'converted',
+                'convertedAt': datetime.now(),
+                'convertedToTradeId': str(actual_trade_id)
             }
             safe_firestore_update(suggested_trade_ref, update_data)
             

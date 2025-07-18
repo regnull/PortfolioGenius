@@ -1,16 +1,18 @@
 import json
-from firebase_functions import https_fn
+from firebase_functions import https_fn, options
 from flask import Flask, jsonify
-from stock_service import StockPriceService
-from auth_utils import AuthUtils, AuthError
-from advisory_service import AdvisoryService, dict_to_position, dict_to_trade, advice_to_dict
-from portfolio_service import PortfolioService
 from google.cloud import firestore
 from datetime import datetime
 import os
 
+# Heavy imports moved inside functions to avoid initialization timeout
+# from stock_service import StockPriceService
+# from auth_utils import AuthUtils, AuthError  
+# from advisory_service import AdvisoryService, dict_to_position, dict_to_trade, advice_to_dict
+# from portfolio_service import PortfolioService
 
-@https_fn.on_request()
+
+@https_fn.on_request(memory=options.MemoryOption.GB_1)
 def health(req):
     """
     Basic health check endpoint for Firebase Cloud Functions.
@@ -44,7 +46,7 @@ def health(req):
 
 
 
-@https_fn.on_request()
+@https_fn.on_request(memory=options.MemoryOption.GB_1)
 def get_stock_price(req):
     """
     Firebase function for getting stock prices.
@@ -78,6 +80,9 @@ def get_stock_price(req):
         return (json.dumps(response), 405, headers)
     
     try:
+        # Lazy import to avoid initialization timeout
+        from auth_utils import AuthUtils, AuthError
+        
         # Verify authentication
         user_info = AuthUtils.verify_auth_token(req)
         
@@ -91,6 +96,9 @@ def get_stock_price(req):
             return (json.dumps(response), 400, headers)
         
         ticker = request_data['ticker']
+        
+        # Lazy import to avoid initialization timeout
+        from stock_service import StockPriceService
         
         # Get stock price
         stock_service = StockPriceService()
@@ -128,7 +136,7 @@ def get_stock_price(req):
         return (json.dumps(response), 500, headers)
 
 
-@https_fn.on_request()
+@https_fn.on_request(memory=options.MemoryOption.GB_1)
 def portfolio_advisory(req):
     """
     Firebase function for portfolio advisory service.
@@ -173,6 +181,9 @@ def portfolio_advisory(req):
         return (json.dumps(response), 405, headers)
     
     try:
+        # Lazy import to avoid initialization timeout
+        from auth_utils import AuthUtils, AuthError
+        
         # Verify authentication
         user_info = AuthUtils.verify_auth_token(req)
         user_id = user_info['uid']
@@ -255,6 +266,9 @@ def portfolio_advisory(req):
                 'fees': trade_data.get('fees'),
                 'notes': trade_data.get('notes')
             })
+        
+        # Lazy import to avoid initialization timeout
+        from advisory_service import AdvisoryService, dict_to_position, dict_to_trade, advice_to_dict
         
         # Convert data to objects
         positions = [dict_to_position(pos) for pos in positions_data]
@@ -348,7 +362,7 @@ def portfolio_advisory(req):
         return (json.dumps(response), 500, headers)
 
 
-@https_fn.on_request()
+@https_fn.on_request(memory=options.MemoryOption.GB_1)
 def construct_portfolio(req):
     """
     Firebase function for AI-powered portfolio construction.
@@ -429,6 +443,9 @@ def construct_portfolio(req):
             }
             return (json.dumps(response), 400, headers)
         
+        # Lazy import to avoid initialization timeout
+        from portfolio_service import PortfolioService
+        
         # Initialize portfolio service
         try:
             portfolio_service = PortfolioService()
@@ -482,7 +499,7 @@ def construct_portfolio(req):
         return (json.dumps(response), 500, headers)
 
 
-@https_fn.on_request()
+@https_fn.on_request(memory=options.MemoryOption.GB_1)
 def portfolio_tools_status(req):
     """
     Firebase function to check portfolio service tools and API key status.
@@ -508,6 +525,9 @@ def portfolio_tools_status(req):
     }
     
     try:
+        # Lazy import to avoid initialization timeout
+        from portfolio_service import PortfolioService
+        
         # Initialize portfolio service to check status
         try:
             portfolio_service = PortfolioService()
@@ -547,7 +567,7 @@ def portfolio_tools_status(req):
         return (json.dumps(response), 500, headers)
 
 
-@https_fn.on_request()
+@https_fn.on_request(memory=options.MemoryOption.GB_1)
 def get_suggested_trades(req):
     """
     Firebase function to get suggested trades for a portfolio.
@@ -604,6 +624,9 @@ def get_suggested_trades(req):
             }
             return (json.dumps(response), 400, headers)
         
+        # Lazy import to avoid initialization timeout
+        from portfolio_service import PortfolioService
+        
         # Initialize portfolio service
         try:
             portfolio_service = PortfolioService()
@@ -642,7 +665,7 @@ def get_suggested_trades(req):
         return (json.dumps(response), 500, headers)
 
 
-@https_fn.on_request()
+@https_fn.on_request(memory=options.MemoryOption.GB_1)
 def convert_suggested_trade(req):
     """
     Firebase function to convert a suggested trade to an actual trade.
@@ -720,6 +743,9 @@ def convert_suggested_trade(req):
         # Optional trade data overrides
         trade_data = request_data.get('trade_data')
         
+        # Lazy import to avoid initialization timeout
+        from portfolio_service import PortfolioService
+        
         # Initialize portfolio service
         try:
             portfolio_service = PortfolioService()
@@ -767,7 +793,7 @@ def convert_suggested_trade(req):
         return (json.dumps(response), 500, headers)
 
 
-@https_fn.on_request()
+@https_fn.on_request(memory=options.MemoryOption.GB_1)
 def dismiss_suggested_trade(req):
     """
     Firebase function to dismiss a suggested trade.
@@ -839,6 +865,9 @@ def dismiss_suggested_trade(req):
         
         # Optional reason for dismissal
         reason = request_data.get('reason')
+        
+        # Lazy import to avoid initialization timeout
+        from portfolio_service import PortfolioService
         
         # Initialize portfolio service
         try:

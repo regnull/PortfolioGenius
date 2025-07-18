@@ -2,20 +2,21 @@
 
 import { useState } from 'react';
 import { addPosition } from '@/lib/firestore';
-import { Position } from '@/types';
+import { Position, SuggestedTrade } from '@/types';
 
 interface AddPositionFormProps {
   portfolioId: string;
   onSuccess?: (position: Position) => void;
   onCancel?: () => void;
+  suggestedTrade?: SuggestedTrade; // Pre-populate from suggested trade
 }
 
-export default function AddPositionForm({ portfolioId, onSuccess, onCancel }: AddPositionFormProps) {
-  const [symbol, setSymbol] = useState('');
-  const [name, setName] = useState('');
-  const [type, setType] = useState<'stock' | 'etf' | 'crypto' | 'bond' | 'other'>('stock');
-  const [quantity, setQuantity] = useState('');
-  const [openPrice, setOpenPrice] = useState('');
+export default function AddPositionForm({ portfolioId, onSuccess, onCancel, suggestedTrade }: AddPositionFormProps) {
+  const [symbol, setSymbol] = useState(suggestedTrade?.symbol || '');
+  const [name, setName] = useState(suggestedTrade?.name || '');
+  const [type, setType] = useState<'stock' | 'etf' | 'crypto' | 'bond' | 'other'>(suggestedTrade?.type || 'stock');
+  const [quantity, setQuantity] = useState(suggestedTrade ? Math.floor(suggestedTrade.quantity).toString() : '');
+  const [openPrice, setOpenPrice] = useState(suggestedTrade?.estimatedPrice?.toString() || '');
   const [fees, setFees] = useState('');
   const [openDate, setOpenDate] = useState(() => {
     const today = new Date();

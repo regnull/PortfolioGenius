@@ -3,7 +3,10 @@
 import { useState, useEffect } from 'react';
 import { SuggestedTrade, Portfolio } from '@/types';
 import { portfolioApiClient } from '@/lib/portfolio-api-client';
+import { subscribeSuggestedTrades, updateSuggestedTradeStatus } from '@/lib/firestore';
+import { useAuth } from '@/contexts/AuthContext';
 import { formatCurrency } from '@/lib/currency';
+import AddPositionForm from './AddPositionForm';
 
 interface SuggestedTradesProps {
   portfolio: Portfolio;
@@ -11,31 +14,19 @@ interface SuggestedTradesProps {
 }
 
 export default function SuggestedTrades({ portfolio, onTradeConverted }: SuggestedTradesProps) {
+  const { user } = useAuth();
   const [suggestedTrades, setSuggestedTrades] = useState<SuggestedTrade[]>([]);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState<'all' | 'pending' | 'converted' | 'dismissed'>('pending');
+  const [showAddPositionForm, setShowAddPositionForm] = useState(false);
+  const [tradeToConvert, setTradeToConvert] = useState<SuggestedTrade | null>(null);
+  const [showDismissDialog, setShowDismissDialog] = useState(false);
+  const [tradeToDismiss, setTradeToDismiss] = useState<SuggestedTrade | null>(null);
+  const [dismissReason, setDismissReason] = useState('');
 
-  const fetchSuggestedTrades = async () => {
-    setLoading(true);
-    setError('');
-    
-    try {
-      console.log(`Fetching suggested trades for portfolio ${portfolio.id} with filter: ${filter}`);
-      const response = await portfolioApiClient.getSuggestedTrades(
-        portfolio.id,
-        filter === 'all' ? undefined : filter
-      );
-      console.log(`Received ${response.suggested_trades.length} suggested trades:`, response.suggested_trades);
-      setSuggestedTrades(response.suggested_trades);
-    } catch (err) {
-      console.error('Error fetching suggested trades:', err);
-      setError(`Failed to fetch suggested trades: ${err instanceof Error ? err.message : 'Unknown error'}`);
-    } finally {
-      setLoading(false);
-    }
-  };
+
 
   const clearAllPendingTrades = async () => {
     setLoading(true);
@@ -64,8 +55,7 @@ export default function SuggestedTrades({ portfolio, onTradeConverted }: Suggest
         await Promise.all(dismissPromises);
         console.log('Manually cleared all pending trades');
         
-        // Refresh the list
-        await fetchSuggestedTrades();
+        // No need to manually refresh - real-time listener will update automatically
       }
     } catch (err) {
       console.error('Error clearing trades:', err);
@@ -137,8 +127,7 @@ export default function SuggestedTrades({ portfolio, onTradeConverted }: Suggest
                           (response.suggested_trades_created?.count ?? 0) > 0;
       
       if (isSuccessful) {
-        // Always refresh the suggested trades list after a successful call
-        await fetchSuggestedTrades();
+        // Real-time listener will automatically refresh the list after a successful call
         
         // Provide feedback about what happened
         if (response.suggested_trades_created && response.suggested_trades_created.count > 0) {
@@ -162,43 +151,99 @@ export default function SuggestedTrades({ portfolio, onTradeConverted }: Suggest
     }
   };
 
-  const handleConvertTrade = async (trade: SuggestedTrade) => {
+  const handleConvertTrade = (trade: SuggestedTrade) => {
+    setTradeToConvert(trade);
+    setShowAddPositionForm(true);
+  };
+
+  const handlePositionAdded = async () => {
+    if (!tradeToConvert) return;
+    
     try {
-      await portfolioApiClient.convertSuggestedTrade({
-        suggested_trade_id: trade.id
-      });
+      // Update suggested trade status to converted
+      await updateSuggestedTradeStatus(tradeToConvert.id, 'converted');
       
-      // Refresh the suggested trades list
-      await fetchSuggestedTrades();
+      // Close the form
+      setShowAddPositionForm(false);
+      setTradeToConvert(null);
       
       // Notify parent component to refresh portfolio data
       if (onTradeConverted) {
         onTradeConverted();
       }
     } catch (err) {
-      setError(`Failed to convert trade: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      setError(`Failed to update trade status: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
   };
 
-  const handleDismissTrade = async (trade: SuggestedTrade) => {
-    const reason = prompt('Reason for dismissing this trade suggestion (optional):');
+  const handleCancelAddPosition = () => {
+    setShowAddPositionForm(false);
+    setTradeToConvert(null);
+  };
+
+  const handleDismissTrade = (trade: SuggestedTrade) => {
+    setTradeToDismiss(trade);
+    setDismissReason('');
+    setShowDismissDialog(true);
+  };
+
+  const handleConfirmDismiss = async () => {
+    if (!tradeToDismiss) return;
     
     try {
       await portfolioApiClient.dismissSuggestedTrade({
-        suggested_trade_id: trade.id,
-        reason: reason || undefined
+        suggested_trade_id: tradeToDismiss.id,
+        reason: dismissReason.trim() || undefined
       });
       
-      // Refresh the suggested trades list
-      await fetchSuggestedTrades();
+      // Close the dialog
+      setShowDismissDialog(false);
+      setTradeToDismiss(null);
+      setDismissReason('');
+      
+      // Real-time listener will automatically update the list
     } catch (err) {
       setError(`Failed to dismiss trade: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
   };
 
+  const handleCancelDismiss = () => {
+    setShowDismissDialog(false);
+    setTradeToDismiss(null);
+    setDismissReason('');
+  };
+
   useEffect(() => {
-    fetchSuggestedTrades();
-  }, [filter]);
+    if (!portfolio?.id || !user?.uid) return;
+
+    setLoading(true);
+    setError('');
+
+    console.log(`Setting up real-time listener for portfolio ${portfolio.id} with filter: ${filter}`);
+    
+    const unsubscribe = subscribeSuggestedTrades(
+      portfolio.id,
+      user.uid,
+      (trades) => {
+        console.log(`Received ${trades.length} suggested trades via real-time listener:`, trades);
+        
+        // Apply client-side filtering if needed
+        let filteredTrades = trades;
+        if (filter !== 'all') {
+          filteredTrades = trades.filter(trade => trade.status === filter);
+        }
+        
+        setSuggestedTrades(filteredTrades);
+        setLoading(false);
+      },
+      filter === 'all' ? undefined : filter
+    );
+
+    return () => {
+      console.log('Cleaning up suggested trades listener');
+      unsubscribe();
+    };
+  }, [portfolio?.id, user?.uid, filter]);
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -300,43 +345,43 @@ export default function SuggestedTrades({ portfolio, onTradeConverted }: Suggest
                     </span>
                   </div>
                   
-                  <p className="text-sm text-gray-600 mb-2">{trade.name}</p>
+                  <p className="text-sm text-gray-800 mb-2">{trade.name}</p>
                   
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-3">
                     <div>
-                      <span className="text-xs text-gray-500">Quantity</span>
-                      <p className="font-medium">{trade.quantity}</p>
+                      <span className="text-xs text-gray-600">Quantity</span>
+                      <p className="font-medium text-gray-900">{trade.quantity}</p>
                     </div>
                     <div>
-                      <span className="text-xs text-gray-500">Est. Price</span>
-                      <p className="font-medium">{formatCurrency(trade.estimatedPrice)}</p>
+                      <span className="text-xs text-gray-600">Est. Price</span>
+                      <p className="font-medium text-gray-900">{formatCurrency(trade.estimatedPrice)}</p>
                     </div>
                     <div>
-                      <span className="text-xs text-gray-500">Est. Total</span>
-                      <p className="font-medium">{formatCurrency(trade.quantity * trade.estimatedPrice)}</p>
+                      <span className="text-xs text-gray-600">Est. Total</span>
+                      <p className="font-medium text-gray-900">{formatCurrency(trade.quantity * trade.estimatedPrice)}</p>
                     </div>
                     <div>
-                      <span className="text-xs text-gray-500">Type</span>
-                      <p className="font-medium capitalize">{trade.type}</p>
+                      <span className="text-xs text-gray-600">Type</span>
+                      <p className="font-medium text-gray-900 capitalize">{trade.type}</p>
                     </div>
                   </div>
                   
                   <div className="mb-3">
-                    <h4 className="text-sm font-medium text-gray-700 mb-1">AI Rationale</h4>
-                    <p className="text-sm text-gray-600 bg-blue-50 p-2 rounded">{trade.rationale}</p>
+                    <h4 className="text-sm font-medium text-gray-800 mb-1">AI Rationale</h4>
+                    <p className="text-sm text-gray-800 bg-blue-50 p-2 rounded">{trade.rationale}</p>
                   </div>
                   
                   {trade.notes && (
                     <div className="mb-3">
-                      <h4 className="text-sm font-medium text-gray-700 mb-1">Notes</h4>
-                      <p className="text-sm text-gray-600">{trade.notes}</p>
+                      <h4 className="text-sm font-medium text-gray-800 mb-1">Notes</h4>
+                      <p className="text-sm text-gray-800">{trade.notes}</p>
                     </div>
                   )}
 
                   {trade.status === 'dismissed' && trade.dismissedReason && (
                     <div className="mb-3">
-                      <h4 className="text-sm font-medium text-gray-700 mb-1">Dismissal Reason</h4>
-                      <p className="text-sm text-gray-600">{trade.dismissedReason}</p>
+                      <h4 className="text-sm font-medium text-gray-800 mb-1">Dismissal Reason</h4>
+                      <p className="text-sm text-gray-800">{trade.dismissedReason}</p>
                     </div>
                   )}
                 </div>
@@ -360,6 +405,65 @@ export default function SuggestedTrades({ portfolio, onTradeConverted }: Suggest
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Add Position Form Modal */}
+      {showAddPositionForm && tradeToConvert && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Execute Trade: {tradeToConvert.symbol}</h3>
+            <AddPositionForm
+              portfolioId={portfolio.id}
+              suggestedTrade={tradeToConvert}
+              onSuccess={handlePositionAdded}
+              onCancel={handleCancelAddPosition}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Dismiss Trade Dialog Modal */}
+      {showDismissDialog && tradeToDismiss && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Dismiss Trade Suggestion: {tradeToDismiss.symbol}
+            </h3>
+            
+            <p className="text-gray-800 mb-4">
+              Are you sure you want to dismiss this trade suggestion? This action cannot be undone.
+            </p>
+            
+            <div className="mb-4">
+              <label htmlFor="dismiss-reason" className="block text-sm font-medium text-gray-700 mb-2">
+                Reason (optional)
+              </label>
+              <textarea
+                id="dismiss-reason"
+                value={dismissReason}
+                onChange={(e) => setDismissReason(e.target.value)}
+                placeholder="Enter a reason for dismissing this trade suggestion..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-gray-900 placeholder-gray-500"
+                rows={3}
+              />
+            </div>
+            
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={handleCancelDismiss}
+                className="px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmDismiss}
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+              >
+                Dismiss Trade
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

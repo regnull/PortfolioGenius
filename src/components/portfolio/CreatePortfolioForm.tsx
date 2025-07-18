@@ -14,6 +14,7 @@ export default function CreatePortfolioForm({ onSuccess, onCancel }: CreatePortf
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [goal, setGoal] = useState('Design a moderate-risk investment portfolio aimed at achieving steady long-term growth through a diversified mix of asset classes, balancing capital appreciation with risk mitigation. The portfolio should target above-inflation returns while maintaining resilience during market volatility, avoiding highly speculative assets and minimizing large drawdowns.');
+  const [initialCashBalance, setInitialCashBalance] = useState('10000');
   const [isPublic, setIsPublic] = useState(false);
   const [isBotPortfolio, setIsBotPortfolio] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -28,6 +29,15 @@ export default function CreatePortfolioForm({ onSuccess, onCancel }: CreatePortf
     setError('');
 
     try {
+      const cashBalance = parseFloat(initialCashBalance);
+      
+      // Validate cash balance
+      if (isNaN(cashBalance) || cashBalance < 0) {
+        setError('Initial cash balance must be a non-negative number');
+        setLoading(false);
+        return;
+      }
+
       // Build portfolio data object, only including description if it has a value
       const portfolioData: Omit<Portfolio, 'id'> = {
         userId: user.uid,
@@ -35,7 +45,7 @@ export default function CreatePortfolioForm({ onSuccess, onCancel }: CreatePortf
         goal: goal.trim(),
         isPublic,
         isBotPortfolio: isBotPortfolio || false,
-        cashBalance: 10000,
+        cashBalance: cashBalance,
         totalValue: 0,
         totalGainLoss: 0,
         totalGainLossPercent: 0,
@@ -53,6 +63,7 @@ export default function CreatePortfolioForm({ onSuccess, onCancel }: CreatePortf
       setName('');
       setDescription('');
       setGoal('Design a moderate-risk investment portfolio aimed at achieving steady long-term growth through a diversified mix of asset classes, balancing capital appreciation with risk mitigation. The portfolio should target above-inflation returns while maintaining resilience during market volatility, avoiding highly speculative assets and minimizing large drawdowns.');
+      setInitialCashBalance('10000');
       setIsPublic(false);
       setIsBotPortfolio(false);
       
@@ -121,6 +132,26 @@ export default function CreatePortfolioForm({ onSuccess, onCancel }: CreatePortf
           />
         </div>
 
+        <div>
+          <label htmlFor="initialCashBalance" className="block text-sm font-medium text-gray-700 mb-1">
+            Initial Cash Balance *
+          </label>
+          <input
+            type="number"
+            id="initialCashBalance"
+            value={initialCashBalance}
+            onChange={(e) => setInitialCashBalance(e.target.value)}
+            required
+            min="0"
+            step="0.01"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-gray-900"
+            placeholder="10000"
+          />
+          <p className="mt-1 text-sm text-gray-500">
+            Starting cash amount available for investments
+          </p>
+        </div>
+
         <div className="space-y-3">
           <div className="flex items-center">
             <input
@@ -161,7 +192,7 @@ export default function CreatePortfolioForm({ onSuccess, onCancel }: CreatePortf
           )}
           <button
             type="submit"
-            disabled={loading || !name.trim() || !goal.trim()}
+            disabled={loading || !name.trim() || !goal.trim() || !initialCashBalance.trim()}
             className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {loading ? 'Creating...' : 'Create Portfolio'}
