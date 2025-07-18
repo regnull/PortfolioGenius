@@ -6,6 +6,7 @@ const CONSTRUCT_PORTFOLIO_URL = 'https://construct-portfolio-32rtfol3iq-uc.a.run
 const GET_SUGGESTED_TRADES_URL = 'https://get-suggested-trades-32rtfol3iq-uc.a.run.app';
 const CONVERT_SUGGESTED_TRADE_URL = 'https://convert-suggested-trade-32rtfol3iq-uc.a.run.app';
 const DISMISS_SUGGESTED_TRADE_URL = 'https://dismiss-suggested-trade-32rtfol3iq-uc.a.run.app';
+const REQUEST_PORTFOLIO_PERFORMANCE_URL = 'https://request-portfolio-performance-32rtfol3iq-uc.a.run.app';
 
 export interface ConstructPortfolioRequest {
   portfolio_goal: string;
@@ -53,6 +54,12 @@ export interface DismissSuggestedTradeRequest {
 export interface DismissSuggestedTradeResponse {
   success: boolean;
   message: string;
+}
+
+export interface RequestPortfolioPerformanceResponse {
+  queued: boolean;
+  portfolio_id: string;
+  timestamp: string;
 }
 
 export class PortfolioApiClient {
@@ -209,7 +216,33 @@ export class PortfolioApiClient {
       throw error;
     }
   }
+
+  async requestPortfolioPerformance(portfolioId: string): Promise<RequestPortfolioPerformanceResponse> {
+    try {
+      const token = await this.getAuthToken();
+
+      const response = await fetch(REQUEST_PORTFOLIO_PERFORMANCE_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ portfolio_id: portfolioId })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to request portfolio advice');
+      }
+
+      return data as RequestPortfolioPerformanceResponse;
+    } catch (error) {
+      console.error('Error requesting portfolio advice:', error);
+      throw error;
+    }
+  }
 }
 
 // Export singleton instance
-export const portfolioApiClient = PortfolioApiClient.getInstance(); 
+export const portfolioApiClient = PortfolioApiClient.getInstance();

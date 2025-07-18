@@ -10,6 +10,7 @@ import { useStockPrices, PositionWithCurrentPrice } from '@/hooks/useStockPrices
 import AddPositionForm from '@/components/portfolio/AddPositionForm';
 import ClosePositionForm from '@/components/portfolio/ClosePositionForm';
 import SuggestedTrades from '@/components/portfolio/SuggestedTrades';
+import { portfolioApiClient } from '@/lib/portfolio-api-client';
 import Link from 'next/link';
 
 export default function PortfolioPage() {
@@ -24,6 +25,7 @@ export default function PortfolioPage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [positionToClose, setPositionToClose] = useState<Position | null>(null);
   const [updatingCash, setUpdatingCash] = useState(false);
+  const [requestingAdvice, setRequestingAdvice] = useState(false);
 
   const fetchPositions = async () => {
     if (!params.id) return;
@@ -140,6 +142,19 @@ export default function PortfolioPage() {
       console.error('Failed to recalculate cash balance:', err);
     } finally {
       setUpdatingCash(false);
+    }
+  };
+
+  const handleRequestAdvice = async () => {
+    if (!portfolio) return;
+    setRequestingAdvice(true);
+    try {
+      await portfolioApiClient.requestPortfolioPerformance(portfolio.id);
+    } catch (err) {
+      console.error('Failed to request portfolio advice:', err);
+      alert('Failed to request portfolio advice');
+    } finally {
+      setRequestingAdvice(false);
     }
   };
 
@@ -424,6 +439,13 @@ export default function PortfolioPage() {
                   <p className="text-sm text-blue-800">{portfolio.goal}</p>
                 </div>
               )}
+              <button
+                onClick={handleRequestAdvice}
+                disabled={requestingAdvice}
+                className="mt-3 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400 transition-colors text-sm"
+              >
+                {requestingAdvice ? 'Requesting Advice...' : 'Get Portfolio Advice'}
+              </button>
               {portfolio.advice && (
                 <div className="mt-3 p-3 bg-green-50 rounded-lg">
                   <h4 className="text-sm font-medium text-green-900 mb-1">Portfolio Advice</h4>
