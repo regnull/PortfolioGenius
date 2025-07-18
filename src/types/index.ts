@@ -10,7 +10,7 @@ export interface User {
 export interface Portfolio {
   id: string;
   userId: string;
-  name: string;
+  name?: string;
   description?: string;
   goal?: string;
   isPublic: boolean;
@@ -40,7 +40,7 @@ export interface Position {
   id: string;
   portfolioId: string;
   symbol: string;
-  name: string;
+  name?: string;
   type: 'stock' | 'etf' | 'crypto' | 'bond' | 'other';
   quantity: number;
   openPrice: number;

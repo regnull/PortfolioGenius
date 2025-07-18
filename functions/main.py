@@ -482,10 +482,64 @@ def dismiss_suggested_trade(req):
                 "message": str(e)
             }
             return (json.dumps(response), 500, headers)
-    
+
     except Exception as e:
         response = {
             "error": "Internal Server Error",
             "message": f"Failed to dismiss suggested trade: {str(e)}"
+        }
+        return (json.dumps(response), 500, headers)
+
+
+@https_fn.on_request(memory=options.MemoryOption.GB_1)
+def lookup_symbol(req):
+    """Firebase function to look up a company's name for a stock ticker."""
+    cors_result = handle_cors(req, ['POST'])
+    if cors_result.must_return:
+        return cors_result.result
+    headers = cors_result.headers
+
+    try:
+        from auth_utils import AuthUtils, AuthError
+        from stock_service import StockPriceService
+
+        user_info = AuthUtils.verify_auth_token(req)
+        request_data = parse_json_body(req)
+        if 'ticker' not in request_data:
+            response = {
+                "error": "Bad Request",
+                "message": "Request body must contain 'ticker' field",
+            }
+            return (json.dumps(response), 400, headers)
+
+        ticker = request_data['ticker']
+        stock_service = StockPriceService()
+        stock_data = stock_service.get_price(ticker)
+
+        response = {
+            "success": True,
+            "ticker": stock_data['ticker'],
+            "company_name": stock_data.get('company_name', ''),
+        }
+        return (json.dumps(response), 200, headers)
+
+    except AuthError as e:
+        response = {
+            "error": "Authentication failed",
+            "message": str(e),
+        }
+        return (json.dumps(response), 401, headers)
+
+    except ValueError as e:
+        response = {
+            "error": "Bad Request",
+            "message": str(e),
+        }
+        return (json.dumps(response), 400, headers)
+
+    except Exception as e:
+        response = {
+            "error": "Internal Server Error",
+            "message": f"Failed to lookup symbol: {str(e)}",
         }
         return (json.dumps(response), 500, headers)
