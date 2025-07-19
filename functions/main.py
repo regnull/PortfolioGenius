@@ -84,6 +84,182 @@ def get_stock_price(req):
         return (json.dumps(response), 500, headers)
 
 
+@https_fn.on_request(memory=options.MemoryOption.GB_1)
+def generate_suggested_trades(req):
+    """Generate suggested trades and store them in Firestore."""
+    cors_result = handle_cors(req, ['POST'])
+    if cors_result.must_return:
+        return cors_result.result
+    headers = cors_result.headers
+
+    try:
+        expected_token = os.getenv('CLOUD_TASKS_BEARER_TOKEN')
+        if not expected_token:
+            response = {
+                'error': 'Server configuration error',
+                'message': 'CLOUD_TASKS_BEARER_TOKEN is not set'
+            }
+            return (json.dumps(response), 500, headers)
+
+        auth_header = req.headers.get('Authorization', '')
+        if not auth_header.startswith('Bearer '):
+            response = {
+                'error': 'Unauthorized',
+                'message': 'Missing bearer token'
+            }
+            return (json.dumps(response), 401, headers)
+
+        token = auth_header.split('Bearer ')[1]
+        if token != expected_token:
+            response = {
+                'error': 'Unauthorized',
+                'message': 'Invalid token'
+            }
+            return (json.dumps(response), 401, headers)
+
+        request_data = parse_json_body(req)
+        portfolio_id = request_data.get('portfolio_id')
+        user_id = request_data.get('user_id')
+
+        if not portfolio_id or not user_id:
+            response = {
+                'error': 'Bad Request',
+                'message': 'portfolio_id and user_id are required in request body'
+            }
+            return (json.dumps(response), 400, headers)
+
+        db = firestore.Client()
+        portfolio_doc = db.collection('portfolios').document(portfolio_id).get()
+        if not portfolio_doc.exists:
+            response = {
+                'error': 'Not Found',
+                'message': 'Portfolio not found'
+            }
+            return (json.dumps(response), 404, headers)
+
+        portfolio_data = portfolio_doc.to_dict()
+        if portfolio_data.get('userId') != user_id:
+            response = {
+                'error': 'Unauthorized',
+                'message': 'Portfolio does not belong to user'
+            }
+            return (json.dumps(response), 403, headers)
+
+        portfolio_goal = portfolio_data.get('goal') or ''
+        if not portfolio_goal:
+            response = {
+                'error': 'Bad Request',
+                'message': 'Portfolio goal is required to generate suggestions'
+            }
+            return (json.dumps(response), 400, headers)
+
+        from portfolio_service import PortfolioService
+        portfolio_service = PortfolioService()
+        result = portfolio_service.construct_portfolio_with_trades(
+            portfolio_goal, portfolio_id, user_id
+        )
+
+        count = result.get('suggested_trades_created', {}).get('count', 0)
+        response = {
+            'portfolio_id': portfolio_id,
+            'trades_created': count,
+            'timestamp': datetime.now().isoformat()
+        }
+        return (json.dumps(response), 200, headers)
+
+    except Exception as e:
+        response = {
+            'error': 'Internal Server Error',
+            'message': f'Failed to generate suggested trades: {str(e)}'
+        }
+        return (json.dumps(response), 500, headers)
+
+
+@https_fn.on_request(memory=options.MemoryOption.GB_1)
+def request_suggested_trades(req):
+    """Queue a Cloud Task to generate suggested trades for a portfolio."""
+    cors_result = handle_cors(req, ['POST'])
+    if cors_result.must_return:
+        return cors_result.result
+    headers = cors_result.headers
+
+    try:
+        request_data = parse_json_body(req)
+        portfolio_id = request_data.get('portfolio_id')
+        user_id = request_data.get('user_id')
+        if not portfolio_id or not user_id:
+            response = {
+                'error': 'Bad Request',
+                'message': 'portfolio_id and user_id are required in request body'
+            }
+            return (json.dumps(response), 400, headers)
+
+        from google.cloud import tasks_v2
+
+        project = os.getenv('GCP_PROJECT') or os.getenv('PROJECT_ID') or os.getenv('GCLOUD_PROJECT')
+        location = os.getenv('CLOUD_TASKS_LOCATION', 'us-central1')
+        queue = os.getenv('CLOUD_TASKS_QUEUE', 'portfolio-tasks')
+
+        if not project:
+            response = {
+                'error': 'Server configuration error',
+                'message': 'Project ID environment variable is not set'
+            }
+            return (json.dumps(response), 500, headers)
+
+        token = os.getenv('CLOUD_TASKS_BEARER_TOKEN')
+        if not token:
+            response = {
+                'error': 'Server configuration error',
+                'message': 'CLOUD_TASKS_BEARER_TOKEN is not set'
+            }
+            return (json.dumps(response), 500, headers)
+
+        function_base = os.getenv('CLOUD_FUNCTIONS_BASE_URL', f'https://{location}-{project}.cloudfunctions.net')
+        url = f'{function_base}/generate_suggested_trades'
+
+        payload = json.dumps({'portfolio_id': portfolio_id, 'user_id': user_id}).encode()
+
+        client = tasks_v2.CloudTasksClient()
+        parent = client.queue_path(project, location, queue)
+
+        task = {
+            'http_request': {
+                'http_method': tasks_v2.HttpMethod.POST,
+                'url': url,
+                'headers': {
+                    'Content-Type': 'application/json',
+                    'Authorization': f'Bearer {token}'
+                },
+                'body': payload
+            }
+        }
+
+        client.create_task(request={'parent': parent, 'task': task})
+
+        response = {
+            'queued': True,
+            'portfolio_id': portfolio_id,
+            'user_id': user_id,
+            'timestamp': datetime.now().isoformat()
+        }
+        return (json.dumps(response), 200, headers)
+
+    except ValueError as e:
+        response = {
+            'error': 'Bad Request',
+            'message': str(e)
+        }
+        return (json.dumps(response), 400, headers)
+
+    except Exception as e:
+        response = {
+            'error': 'Internal Server Error',
+            'message': f'Failed to create Cloud Task: {str(e)}'
+        }
+        return (json.dumps(response), 500, headers)
+
+
 
 
 @https_fn.on_request(memory=options.MemoryOption.GB_1)

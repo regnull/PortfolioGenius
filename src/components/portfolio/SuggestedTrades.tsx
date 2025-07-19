@@ -108,40 +108,13 @@ export default function SuggestedTrades({ portfolio, onTradeConverted }: Suggest
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
       
-      // Now generate new suggested trades
-      console.log('Generating new suggested trades...');
-      const response = await portfolioApiClient.constructPortfolio({
-        portfolio_goal: portfolio.goal,
-        portfolio_id: portfolio.id,
-        user_id: portfolio.userId,
-        create_suggested_trades: true
-      });
-      
-      // Debug logging to understand the response
-      console.log('Construct portfolio response:', response);
-      
-      // Check if the response indicates success
-      // The response is successful if it has recommendations or suggested_trades_created
-      const isSuccessful = response.success === true || 
-                          response.recommendations?.length > 0 || 
-                          (response.suggested_trades_created?.count ?? 0) > 0;
-      
-      if (isSuccessful) {
-        // Real-time listener will automatically refresh the list after a successful call
-        
-        // Provide feedback about what happened
-        if (response.suggested_trades_created && response.suggested_trades_created.count > 0) {
-          // Success with trades created
-          console.log(`Successfully created ${response.suggested_trades_created.count} suggested trades`);
-        } else if (response.recommendations && response.recommendations.length > 0) {
-          // Success with recommendations but maybe no trades created yet
-          console.log(`Received ${response.recommendations.length} recommendations`);
-        } else {
-          // Success but no meaningful content
-          setError('Portfolio analysis completed but no specific trade recommendations were generated. This could be because your portfolio already aligns well with your goals.');
-        }
+      // Now generate new suggested trades asynchronously
+      console.log('Queuing new suggested trades...');
+      const response = await portfolioApiClient.requestSuggestedTrades(portfolio.id);
+      if (response.queued) {
+        console.log('Suggested trades request queued');
       } else {
-        setError(response.message || 'Failed to generate portfolio recommendations');
+        setError('Failed to queue suggested trades');
       }
     } catch (err) {
       setError(`Failed to generate suggestions: ${err instanceof Error ? err.message : 'Unknown error'}`);

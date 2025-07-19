@@ -7,6 +7,7 @@ const GET_SUGGESTED_TRADES_URL = 'https://get-suggested-trades-32rtfol3iq-uc.a.r
 const CONVERT_SUGGESTED_TRADE_URL = 'https://convert-suggested-trade-32rtfol3iq-uc.a.run.app';
 const DISMISS_SUGGESTED_TRADE_URL = 'https://dismiss-suggested-trade-32rtfol3iq-uc.a.run.app';
 const REQUEST_PORTFOLIO_PERFORMANCE_URL = 'https://request-portfolio-performance-32rtfol3iq-uc.a.run.app';
+const REQUEST_SUGGESTED_TRADES_URL = 'https://request-suggested-trades-32rtfol3iq-uc.a.run.app';
 
 export interface ConstructPortfolioRequest {
   portfolio_goal: string;
@@ -59,6 +60,13 @@ export interface DismissSuggestedTradeResponse {
 export interface RequestPortfolioPerformanceResponse {
   queued: boolean;
   portfolio_id: string;
+  timestamp: string;
+}
+
+export interface RequestSuggestedTradesResponse {
+  queued: boolean;
+  portfolio_id: string;
+  user_id: string;
   timestamp: string;
 }
 
@@ -239,6 +247,36 @@ export class PortfolioApiClient {
       return data as RequestPortfolioPerformanceResponse;
     } catch (error) {
       console.error('Error requesting portfolio advice:', error);
+      throw error;
+    }
+  }
+
+  async requestSuggestedTrades(portfolioId: string): Promise<RequestSuggestedTradesResponse> {
+    try {
+      const token = await this.getAuthToken();
+      const user = auth.currentUser;
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+
+      const response = await fetch(REQUEST_SUGGESTED_TRADES_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ portfolio_id: portfolioId, user_id: user.uid })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to request suggested trades');
+      }
+
+      return data as RequestSuggestedTradesResponse;
+    } catch (error) {
+      console.error('Error requesting suggested trades:', error);
       throw error;
     }
   }

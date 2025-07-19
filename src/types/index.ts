@@ -78,6 +78,7 @@ export interface SuggestedTrade {
   convertedToTradeId?: string;
   dismissedReason?: string;
   dismissedAt?: Date;
+  expiresAt?: Date;
 }
 
 export interface PortfolioRecommendation {
