@@ -266,12 +266,13 @@ class PortfolioService:
                     "system",
                     "You are an experienced investment advisor. "
                     "Use the available tools to fetch up to date stock prices and news "
-                    "before providing advice on a portfolio.",
+                    "before providing advice on a portfolio. "
+                    "Return your final answer formatted in Markdown for display.",
                 ),
                 ("user", "{input}"),
                 (
                     "assistant",
-                    "I'll research the holdings and craft a short analysis.",
+                    "I'll research the holdings and craft a short analysis in Markdown.",
                 ),
                 ("placeholder", "{agent_scratchpad}"),
             ]
