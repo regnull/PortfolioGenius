@@ -11,6 +11,7 @@ from langchain_openai import ChatOpenAI
 from langchain.agents import create_openai_tools_agent, AgentExecutor
 from langchain.prompts import ChatPromptTemplate
 from google.cloud import firestore
+from google.cloud.firestore_v1 import FieldPath
 from firestore_utils import safe_firestore_add, safe_firestore_update, clean_string_field, clean_numeric_field, sanitize_for_firestore
 
 # Import tool modules (we'll need to copy these)
@@ -611,7 +612,7 @@ class PortfolioService:
             # Get the suggested trade from any portfolio
             query = (
                 self.db.collection_group('suggestedTrades')
-                .where(firestore.FieldPath.document_id(), '==', suggested_trade_id)
+                .where(FieldPath.document_id(), '==', suggested_trade_id)
             )
             docs = list(query.get())
             if not docs:
@@ -714,7 +715,7 @@ class PortfolioService:
             # Get the suggested trade from any portfolio
             query = (
                 self.db.collection_group('suggestedTrades')
-                .where(firestore.FieldPath.document_id(), '==', suggested_trade_id)
+                .where(FieldPath.document_id(), '==', suggested_trade_id)
             )
             docs = list(query.get())
             if not docs:
