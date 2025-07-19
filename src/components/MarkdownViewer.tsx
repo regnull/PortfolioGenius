@@ -16,12 +16,12 @@ export default function MarkdownViewer({ content, maxLines = 4 }: MarkdownViewer
   const displayContent = expanded || !shouldTruncate ? content : lines.slice(0, maxLines).join('\n');
 
   return (
-    <div>
-      <ReactMarkdown remarkPlugins={[remarkGfm]} className="prose prose-sm">
+    <div className="text-gray-900">
+      <ReactMarkdown remarkPlugins={[remarkGfm]} className="prose prose-sm prose-gray max-w-none">
         {displayContent}
       </ReactMarkdown>
       {shouldTruncate && !expanded && (
-        <button onClick={() => setExpanded(true)} className="text-blue-600 mt-2 text-sm">
+        <button onClick={() => setExpanded(true)} className="text-blue-600 hover:text-blue-700 mt-2 text-sm font-medium">
           Show more
         </button>
       )}
