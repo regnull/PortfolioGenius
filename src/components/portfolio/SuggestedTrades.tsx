@@ -42,10 +42,12 @@ export default function SuggestedTrades({ portfolio, onTradeConverted }: Suggest
         const dismissPromises = existingTrades.suggested_trades.map(async (trade) => {
           try {
             console.log(`Manually dismissing trade ${trade.id} (${trade.symbol})`);
-            await portfolioApiClient.dismissSuggestedTrade({
-              suggested_trade_id: trade.id,
-              reason: 'Manually cleared by user'
-            });
+            await updateSuggestedTradeStatus(
+              portfolio.id,
+              trade.id,
+              'dismissed',
+              'Manually cleared by user'
+            );
             console.log(`Successfully dismissed trade ${trade.id}`);
           } catch (err) {
             console.error(`Failed to dismiss trade ${trade.id}:`, err);
@@ -91,10 +93,12 @@ export default function SuggestedTrades({ portfolio, onTradeConverted }: Suggest
         const dismissPromises = pendingTrades.map(async (trade) => {
           try {
             console.log(`Dismissing trade ${trade.id} (${trade.symbol})`);
-            await portfolioApiClient.dismissSuggestedTrade({
-              suggested_trade_id: trade.id,
-              reason: 'Auto-dismissed to generate new AI suggestions'
-            });
+            await updateSuggestedTradeStatus(
+              portfolio.id,
+              trade.id,
+              'dismissed',
+              'Auto-dismissed to generate new AI suggestions'
+            );
             console.log(`Successfully dismissed trade ${trade.id}`);
           } catch (err) {
             console.error(`Failed to dismiss trade ${trade.id}:`, err);
@@ -166,10 +170,13 @@ export default function SuggestedTrades({ portfolio, onTradeConverted }: Suggest
     if (!tradeToDismiss) return;
     
     try {
-      await portfolioApiClient.dismissSuggestedTrade({
-        suggested_trade_id: tradeToDismiss.id,
-        reason: dismissReason.trim() || undefined
-      });
+      // Update the trade status directly in Firestore - much faster than cloud function
+      await updateSuggestedTradeStatus(
+        portfolio.id, 
+        tradeToDismiss.id, 
+        'dismissed',
+        dismissReason.trim() || undefined
+      );
       
       // Close the dialog
       setShowDismissDialog(false);

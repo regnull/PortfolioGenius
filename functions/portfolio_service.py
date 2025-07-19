@@ -11,7 +11,7 @@ from langchain_openai import ChatOpenAI
 from langchain.agents import create_openai_tools_agent, AgentExecutor
 from langchain.prompts import ChatPromptTemplate
 from google.cloud import firestore
-from google.cloud.firestore_v1 import FieldPath
+# Removed FieldPath import as it's causing compatibility issues
 from firestore_utils import safe_firestore_add, safe_firestore_update, clean_string_field, clean_numeric_field, sanitize_for_firestore
 
 # Import tool modules (we'll need to copy these)
@@ -613,15 +613,20 @@ class PortfolioService:
             str: ID of the created actual trade
         """
         try:
-            # Get the suggested trade from any portfolio
-            query = (
-                self.db.collection_group('suggestedTrades')
-                .where(FieldPath.document_id(), '==', suggested_trade_id)
-            )
-            docs = list(query.get())
-            if not docs:
+            # Get the suggested trade from any portfolio using collection_group
+            # Since we removed FieldPath, we'll iterate through all suggested trades to find the right one
+            query = self.db.collection_group('suggestedTrades')
+            docs = query.get()
+            
+            suggested_trade_doc = None
+            for doc in docs:
+                if doc.id == suggested_trade_id:
+                    suggested_trade_doc = doc
+                    break
+            
+            if not suggested_trade_doc:
                 raise ValueError("Suggested trade not found")
-            suggested_trade_doc = docs[0]
+            
             suggested_trade_ref = suggested_trade_doc.reference
             
             suggested_trade = suggested_trade_doc.to_dict()
@@ -702,50 +707,3 @@ class PortfolioService:
             
         except Exception as e:
             raise RuntimeError(f"Error converting suggested trade to actual: {e}")
-    
-    def dismiss_suggested_trade(self, suggested_trade_id: str, user_id: str, reason: str = None) -> bool:
-        """
-        Dismiss a suggested trade.
-        
-        Args:
-            suggested_trade_id (str): ID of the suggested trade
-            user_id (str): User ID for authorization
-            reason (str, optional): Reason for dismissal
-        
-        Returns:
-            bool: Success status
-        """
-        try:
-            # Get the suggested trade from any portfolio
-            query = (
-                self.db.collection_group('suggestedTrades')
-                .where(FieldPath.document_id(), '==', suggested_trade_id)
-            )
-            docs = list(query.get())
-            if not docs:
-                raise ValueError("Suggested trade not found")
-            suggested_trade_doc = docs[0]
-            suggested_trade_ref = suggested_trade_doc.reference
-            
-            suggested_trade = suggested_trade_doc.to_dict()
-            
-            # Verify user ownership
-            if suggested_trade.get('userId') != user_id:
-                raise ValueError("You do not have permission to access this suggested trade")
-            
-            # Update suggested trade status to dismissed
-            update_data = {
-                'status': 'dismissed',
-                'dismissed_at': datetime.now()
-            }
-            
-            # Only add reason if it's provided and not empty
-            if reason and reason.strip():
-                update_data['dismissal_reason'] = str(reason.strip())
-            
-            safe_firestore_update(suggested_trade_ref, update_data)
-            
-            return True
-            
-        except Exception as e:
-            raise RuntimeError(f"Error dismissing suggested trade: {e}") 

@@ -14,7 +14,8 @@ import {
   serverTimestamp,
   onSnapshot,
   Unsubscribe,
-  Timestamp
+  Timestamp,
+  FieldValue
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { User, Portfolio, Trade, Position, SuggestedTrade } from '@/types';
@@ -557,10 +558,17 @@ export const deletePosition = async (
 export const updateSuggestedTradeStatus = async (
   portfolioId: string,
   tradeId: string,
-  status: 'pending' | 'converted' | 'dismissed'
+  status: 'pending' | 'converted' | 'dismissed',
+  reason?: string
 ) => {
   try {
-    const updateData: any = {
+    const updateData: {
+      status: 'pending' | 'converted' | 'dismissed';
+      updatedAt: FieldValue;
+      convertedAt?: FieldValue;
+      dismissedAt?: FieldValue;
+      dismissalReason?: string;
+    } = {
       status,
       updatedAt: serverTimestamp()
     };
@@ -569,6 +577,10 @@ export const updateSuggestedTradeStatus = async (
       updateData.convertedAt = serverTimestamp();
     } else if (status === 'dismissed') {
       updateData.dismissedAt = serverTimestamp();
+      // Add dismissal reason if provided
+      if (reason && reason.trim()) {
+        updateData.dismissalReason = reason.trim();
+      }
     }
 
     await updateDoc(

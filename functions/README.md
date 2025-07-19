@@ -23,7 +23,7 @@ The following Firebase functions are deployed:
 | `construct_portfolio` | `/construct_portfolio` | `POST` |
 | `get_suggested_trades` | `/get_suggested_trades` | `GET` |
 | `convert_suggested_trade` | `/convert_suggested_trade` | `POST` |
-| `dismiss_suggested_trade` | `/dismiss_suggested_trade` | `POST` |
+
 | `lookup_symbol` | `/lookup_symbol` | `POST` |
 | `get_portfolio_advice` | `/get_portfolio_advice` | `POST` |
 | `request_portfolio_performance` | `/request_portfolio_performance` | `POST` |

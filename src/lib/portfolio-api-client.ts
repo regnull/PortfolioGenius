@@ -5,7 +5,7 @@ import { SuggestedTrade, PortfolioRecommendation } from '@/types';
 const CONSTRUCT_PORTFOLIO_URL = 'https://construct-portfolio-32rtfol3iq-uc.a.run.app';
 const GET_SUGGESTED_TRADES_URL = 'https://get-suggested-trades-32rtfol3iq-uc.a.run.app';
 const CONVERT_SUGGESTED_TRADE_URL = 'https://convert-suggested-trade-32rtfol3iq-uc.a.run.app';
-const DISMISS_SUGGESTED_TRADE_URL = 'https://dismiss-suggested-trade-32rtfol3iq-uc.a.run.app';
+
 const REQUEST_PORTFOLIO_PERFORMANCE_URL = 'https://request-portfolio-performance-32rtfol3iq-uc.a.run.app';
 const REQUEST_SUGGESTED_TRADES_URL = 'https://request-suggested-trades-32rtfol3iq-uc.a.run.app';
 
@@ -47,15 +47,7 @@ export interface ConvertSuggestedTradeResponse {
   message: string;
 }
 
-export interface DismissSuggestedTradeRequest {
-  suggested_trade_id: string;
-  reason?: string;
-}
 
-export interface DismissSuggestedTradeResponse {
-  success: boolean;
-  message: string;
-}
 
 export interface RequestPortfolioPerformanceResponse {
   queued: boolean;
@@ -191,39 +183,7 @@ export class PortfolioApiClient {
     }
   }
 
-  async dismissSuggestedTrade(request: DismissSuggestedTradeRequest): Promise<DismissSuggestedTradeResponse> {
-    try {
-      const token = await this.getAuthToken();
-      const user = auth.currentUser;
-      
-      if (!user) {
-        throw new Error('User not authenticated');
-      }
-      
-      const response = await fetch(DISMISS_SUGGESTED_TRADE_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          ...request,
-          user_id: user.uid
-        })
-      });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to dismiss suggested trade');
-      }
-
-      return data;
-    } catch (error) {
-      console.error('Error dismissing suggested trade:', error);
-      throw error;
-    }
-  }
 
   async requestPortfolioPerformance(portfolioId: string): Promise<RequestPortfolioPerformanceResponse> {
     try {

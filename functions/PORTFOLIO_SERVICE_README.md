@@ -10,7 +10,7 @@ This cloud function provides intelligent portfolio recommendations based on natu
 
 1. **Portfolio Construction**: AI creates portfolio recommendations
 2. **Suggested Trades Creation**: Recommendations are converted to actionable trades
-3. **Trade Management**: Users can view, execute, or dismiss suggested trades
+3. **Trade Management**: Users can view, execute, or dismiss suggested trades (dismissal is handled client-side via Firestore)
 4. **Trade Execution**: Suggested trades become actual trades in the portfolio
 
 ## Endpoints
@@ -135,28 +135,6 @@ Convert a suggested trade to an actual trade.
 }
 ```
 
-### 4. `/dismiss_suggested_trade` (POST)
-
-Dismiss a suggested trade.
-
-**Request Body:**
-```json
-{
-    "suggested_trade_id": "trade_123",
-    "user_id": "user_456",
-    "reason": "Don't want to invest in this stock right now"
-}
-```
-
-**Response:**
-```json
-{
-    "message": "Suggested trade successfully dismissed",
-    "suggested_trade_id": "trade_123",
-    "success": true,
-    "timestamp": "2024-12-15T20:00:00"
-}
-```
 
 
 ## Firestore Collections
@@ -294,7 +272,7 @@ The service provides detailed error responses:
 3. Deploy functions:
 
 ```bash
-firebase deploy --only functions:construct_portfolio,functions:get_suggested_trades,functions:convert_suggested_trade,functions:dismiss_suggested_trade
+firebase deploy --only functions:construct_portfolio,functions:get_suggested_trades,functions:convert_suggested_trade
 ```
 
 ## Testing
