@@ -185,7 +185,7 @@ class PortfolioService:
         
         return sanitized
     
-    def construct_portfolio(self, portfolio_goal: str) -> Dict[str, Any]:
+    def construct_portfolio(self, portfolio_goal: str, additional_context: str = "") -> Dict[str, Any]:
         """
         Construct an investment portfolio based on a natural language description of goals.
         
@@ -207,9 +207,11 @@ class PortfolioService:
             
             portfolio_request = f"""
             Today is {today_date}.
-            
+
             {portfolio_goal}
-            
+
+            {additional_context}
+
             Please research current market conditions, analyze suitable investments, and provide a comprehensive portfolio recommendation in the specified JSON format.
             Include current prices, fundamental analysis, and detailed rationale for each recommendation.
             """
@@ -516,21 +518,23 @@ class PortfolioService:
         else:
             return 'medium'
     
-    def construct_portfolio_with_trades(self, portfolio_goal: str, portfolio_id: str, user_id: str) -> Dict[str, Any]:
+    def construct_portfolio_with_trades(self, portfolio_goal: str, portfolio_id: str, user_id: str, additional_context: str = "") -> Dict[str, Any]:
         """
         Construct an investment portfolio and create suggested trades for it.
-        
+
         Args:
             portfolio_goal (str): Natural language description of portfolio requirements
             portfolio_id (str): ID of the portfolio to create suggestions for
             user_id (str): ID of the user who owns the portfolio
-        
+            additional_context (str, optional): Extra information about the current portfolio
+                (positions, cash balance, performance) to guide trade generation
+
         Returns:
             dict: Portfolio recommendation with suggested trades created
         """
         try:
-            # First, construct the portfolio using the existing method
-            portfolio_recommendation = self.construct_portfolio(portfolio_goal)
+            # First, construct the portfolio using the existing method with additional context
+            portfolio_recommendation = self.construct_portfolio(portfolio_goal, additional_context)
             
             # Create suggested trades from the recommendations
             suggested_trade_ids = self._create_suggested_trades_from_portfolio(
