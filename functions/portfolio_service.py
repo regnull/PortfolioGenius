@@ -5,7 +5,7 @@ Provides AI-powered portfolio recommendations using multiple financial data sour
 
 import os
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, Any, List
 from langchain_openai import ChatOpenAI
 from langchain.agents import create_openai_tools_agent, AgentExecutor
@@ -448,7 +448,11 @@ class PortfolioService:
                     'created_at': datetime.now(),  # Keep for backward compatibility
                     'updatedAt': datetime.now(),
                     'source': 'ai_portfolio_construction',
-                    'portfolio_recommendation_id': portfolio_recommendation.get('portfolio_summary', {}).get('date_created', datetime.now().isoformat())
+                    'portfolio_recommendation_id': portfolio_recommendation.get(
+                        'portfolio_summary', {}
+                    ).get('date_created', datetime.now().isoformat()),
+                    'expiresAt': datetime.now() + timedelta(days=7),
+                    'expires_at': datetime.now() + timedelta(days=7),
                 }
                 
                 # Validate all fields are not None/undefined before saving
@@ -564,6 +568,7 @@ class PortfolioService:
                 .document(str(portfolio_id))
                 .collection('suggestedTrades')
                 .where('userId', '==', user_id)
+                .where('expires_at', '>', datetime.now())
             )
             
             # Add status filter if provided

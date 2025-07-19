@@ -591,6 +591,7 @@ export const subscribeSuggestedTrades = (
     let q = query(
       collection(db, 'portfolios', portfolioId, 'suggestedTrades'),
       where('userId', '==', userId),
+      where('expiresAt', '>', Timestamp.now()),
       orderBy('createdAt', 'desc')
     );
 
@@ -600,6 +601,7 @@ export const subscribeSuggestedTrades = (
         collection(db, 'portfolios', portfolioId, 'suggestedTrades'),
         where('userId', '==', userId),
         where('status', '==', status),
+        where('expiresAt', '>', Timestamp.now()),
         orderBy('createdAt', 'desc')
       );
     }
@@ -615,6 +617,7 @@ export const subscribeSuggestedTrades = (
           createdAt: data.createdAt?.toDate() || new Date(),
           updatedAt: data.updatedAt?.toDate() || new Date(),
           dismissedAt: data.dismissedAt?.toDate() || undefined,
+          expiresAt: data.expiresAt?.toDate() || undefined,
         } as SuggestedTrade);
       });
       callback(trades);
