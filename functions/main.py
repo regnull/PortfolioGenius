@@ -153,10 +153,56 @@ def generate_suggested_trades(req):
             }
             return (json.dumps(response), 400, headers)
 
+        cash_balance = portfolio_data.get('cashBalance', 0.0)
+        positions_ref = db.collection('portfolios').document(portfolio_id).collection('positions')
+        position_docs = positions_ref.get()
+        positions = [doc.to_dict() for doc in position_docs]
+
+        trades_ref = (
+            db.collection('portfolios')
+            .document(portfolio_id)
+            .collection('trades')
+            .order_by('date', direction=firestore.Query.DESCENDING)
+            .limit(1)
+        )
+        trade_docs = list(trades_ref.get())
+        last_trade_date = None
+        if trade_docs:
+            last_trade = trade_docs[0].to_dict().get('date')
+            if hasattr(last_trade, 'isoformat'):
+                last_trade_date = last_trade.isoformat()
+            else:
+                last_trade_date = str(last_trade)
+
+        position_lines = []
+        for pos in positions:
+            symbol = pos.get('symbol', '')
+            qty = pos.get('quantity', 0)
+            gain_pct = (
+                pos.get('gainLossPercent')
+                or pos.get('gain_loss_percent')
+                or 0
+            )
+            position_lines.append(f"- {symbol}: {qty} shares, {gain_pct}%")
+        positions_text = "\n".join(position_lines) if position_lines else "None"
+
+        additional_context = (
+            f"Current cash balance: ${cash_balance}.\n"
+            f"Current positions with performance (% gain/loss):\n{positions_text}\n"
+        )
+        if last_trade_date:
+            additional_context += f"Last trade date: {last_trade_date}.\n"
+        additional_context += (
+            "Consider the overall market conditions and recent news for these companies "
+            "before suggesting any trades. Avoid overtrading and churn. For a moderate risk "
+            "portfolio, trades should be infrequent. It's acceptable to suggest no trades "
+            "if the portfolio already aligns with its goal."
+        )
+
         from portfolio_service import PortfolioService
         portfolio_service = PortfolioService()
         result = portfolio_service.construct_portfolio_with_trades(
-            portfolio_goal, portfolio_id, user_id
+            portfolio_goal, portfolio_id, user_id, additional_context
         )
 
         count = result.get('suggested_trades_created', {}).get('count', 0)
