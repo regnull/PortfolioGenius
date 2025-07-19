@@ -20,9 +20,12 @@ export default function MarkdownViewer({ content, maxLines = 4 }: MarkdownViewer
       <ReactMarkdown remarkPlugins={[remarkGfm]} className="prose prose-sm prose-gray max-w-none">
         {displayContent}
       </ReactMarkdown>
-      {shouldTruncate && !expanded && (
-        <button onClick={() => setExpanded(true)} className="text-blue-600 hover:text-blue-700 mt-2 text-sm font-medium">
-          Show more
+      {shouldTruncate && (
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="text-blue-600 hover:text-blue-700 mt-2 text-sm font-medium"
+        >
+          {expanded ? 'Show less' : 'Show more'}
         </button>
       )}
     </div>

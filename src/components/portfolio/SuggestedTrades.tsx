@@ -25,6 +25,7 @@ export default function SuggestedTrades({ portfolio, onTradeConverted }: Suggest
   const [showDismissDialog, setShowDismissDialog] = useState(false);
   const [tradeToDismiss, setTradeToDismiss] = useState<SuggestedTrade | null>(null);
   const [dismissReason, setDismissReason] = useState('');
+  const [showGeneratingDialog, setShowGeneratingDialog] = useState(false);
 
 
 
@@ -113,6 +114,7 @@ export default function SuggestedTrades({ portfolio, onTradeConverted }: Suggest
       const response = await portfolioApiClient.requestSuggestedTrades(portfolio.id);
       if (response.queued) {
         console.log('Suggested trades request queued');
+        setShowGeneratingDialog(true);
       } else {
         setError('Failed to queue suggested trades');
       }
@@ -217,6 +219,12 @@ export default function SuggestedTrades({ portfolio, onTradeConverted }: Suggest
       unsubscribe();
     };
   }, [portfolio?.id, user?.uid, filter]);
+
+  useEffect(() => {
+    if (showGeneratingDialog && suggestedTrades.length > 0) {
+      setShowGeneratingDialog(false);
+    }
+  }, [suggestedTrades, showGeneratingDialog]);
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -439,6 +447,18 @@ export default function SuggestedTrades({ portfolio, onTradeConverted }: Suggest
           </div>
         </div>
       )}
+
+      {showGeneratingDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 text-center">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Generating Suggestions</h3>
+            <p className="text-gray-800 mb-4">AI is working to generate trade suggestions, they will be displayed on this page when ready</p>
+            <div className="flex justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
-} 
+}
